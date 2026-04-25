@@ -30,6 +30,7 @@ export default function WholesalerOrders() {
   const [confirmModal, setConfirmModal] = useState<Order | null>(null)
   const [confirmForm, setConfirmForm] = useState({ wholesalerNote: '', dueDate: '', createCreditEntry: true })
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [stockWarning, setStockWarning] = useState<{ order: Order; msg: string } | null>(null)
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null)
   const [editItems, setEditItems] = useState<EditItem[]>([])
   const [editNote, setEditNote] = useState('')
@@ -62,9 +63,7 @@ export default function WholesalerOrders() {
     onError: (err: unknown, variables) => {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? ''
       if (msg.includes('yeterli stok yok')) {
-        if (window.confirm(`⚠️ ${msg}\n\nYine de onaylayıp stoku eksi'ye düşürmek istiyor musunuz?`)) {
-          confirmMutation.mutate({ order: variables.order, force: true })
-        }
+        setStockWarning({ order: variables.order, msg })
       }
     }
   })
@@ -287,6 +286,36 @@ export default function WholesalerOrders() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Stok uyarı modal */}
+      {stockWarning && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="text-3xl mb-3 text-center">⚠️</div>
+            <h2 className="font-bold text-gray-900 mb-2 text-center">Yetersiz Stok</h2>
+            <p className="text-sm text-gray-600 mb-5 text-center">{stockWarning.msg}</p>
+            <p className="text-sm text-gray-700 mb-5 text-center">Yine de onaylayıp stoku eksi'ye düşürmek istiyor musunuz?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  confirmMutation.mutate({ order: stockWarning.order, force: true })
+                  setStockWarning(null)
+                }}
+                disabled={confirmMutation.isPending}
+                className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors"
+              >
+                Onayla (Eksi Stok)
+              </button>
+              <button
+                onClick={() => setStockWarning(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+              >
+                İptal
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
