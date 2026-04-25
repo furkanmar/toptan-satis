@@ -53,6 +53,7 @@ export default function WholesalerOrders() {
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['incoming-orders'] })
+      qc.invalidateQueries({ queryKey: ['credit-all-stores'] })
       setConfirmModal(null)
       setConfirmForm({ wholesalerNote: '', dueDate: '', createCreditEntry: true })
     }

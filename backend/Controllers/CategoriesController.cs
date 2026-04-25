@@ -34,7 +34,7 @@ public class CategoriesController(AppDbContext db) : ControllerBase
         var cat = new Category { Name = dto.Name, Slug = slug, WholesalerId = wholesalerId };
         db.Categories.Add(cat);
         await db.SaveChangesAsync();
-        return Ok(cat);
+        return Ok(new { cat.Id, cat.Name, cat.Slug, cat.WholesalerId });
     }
 
     [HttpDelete("{id:guid}")]

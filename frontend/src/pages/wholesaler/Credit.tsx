@@ -125,7 +125,7 @@ export default function WholesalerCredit() {
                       <label className="block text-xs font-medium text-gray-700 mb-1">Tür</label>
                       <select
                         value={form.type}
-                        onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                        onChange={e => setForm(f => ({ ...f, type: e.target.value, dueDate: '' }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="ManualDebit">Borç</option>
@@ -141,7 +141,7 @@ export default function WholesalerCredit() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
-                    <div>
+                    <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-700 mb-1">Açıklama</label>
                       <input
                         value={form.description}
@@ -149,15 +149,41 @@ export default function WholesalerCredit() {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Vade Tarihi</label>
-                      <input
-                        type="date"
-                        value={form.dueDate}
-                        onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
+                    {form.type === 'ManualDebit' && (
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Vade Tarihi</label>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {[
+                            { label: '1 Hafta', days: 7 },
+                            { label: '2 Hafta', days: 14 },
+                            { label: '3 Hafta', days: 21 },
+                            { label: '4 Hafta', days: 28 },
+                            { label: '1 Ay',    days: 30 },
+                            { label: '2 Ay',    days: 60 },
+                          ].map(({ label, days }) => {
+                            const d = new Date()
+                            d.setDate(d.getDate() + days)
+                            const val = d.toISOString().split('T')[0]
+                            return (
+                              <button
+                                key={label}
+                                type="button"
+                                onClick={() => setForm(f => ({ ...f, dueDate: val }))}
+                                className={`px-2 py-1 rounded text-xs border transition-colors ${form.dueDate === val ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                              >
+                                {label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <input
+                          type="date"
+                          value={form.dueDate}
+                          onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2 mt-3">
                     <button
