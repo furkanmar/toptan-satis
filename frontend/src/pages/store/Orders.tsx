@@ -1,11 +1,14 @@
+import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Layout from '../../components/Layout'
 import { ordersApi } from '../../api/client'
 import type { Order } from '../../types'
 
-const NAV = [
-  { to: '/store', label: 'Ürünler' },
-  { to: '/store/orders', label: 'Siparişlerim' }
+const NAV = (wholesalerId: string) => [
+  { to: `/store/${wholesalerId}`, label: 'Ürünler' },
+  { to: `/store/${wholesalerId}/orders`, label: 'Siparişlerim' },
+  { to: `/store/${wholesalerId}/credit`, label: 'Veresiye' },
+  { to: '/store', label: '← Toptancı Seç' }
 ]
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -17,13 +20,19 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 }
 
 export default function StoreOrders() {
-  const { data: orders = [], isLoading } = useQuery<Order[]>({
+  const { wholesalerId } = useParams<{ wholesalerId: string }>()
+
+  const { data: allOrders = [], isLoading } = useQuery<Order[]>({
     queryKey: ['my-orders'],
     queryFn: ordersApi.myOrders
   })
 
+  // Bu toptancıya ait siparişleri filtrele
+  const orders = allOrders.filter(o => o.wholesalerId === wholesalerId)
+  const nav = NAV(wholesalerId ?? '')
+
   return (
-    <Layout navLinks={NAV}>
+    <Layout navLinks={nav}>
       <h1 className="text-xl font-bold text-gray-900 mb-4">Siparişlerim</h1>
       {isLoading ? (
         <div className="text-center py-12 text-gray-400">Yükleniyor...</div>
@@ -33,12 +42,17 @@ export default function StoreOrders() {
         <div className="space-y-3">
           {orders.map((order: Order) => {
             const { label, color } = STATUS_LABELS[order.status] ?? { label: order.status, color: 'bg-gray-100 text-gray-600' }
+            const isOverdue = order.dueDate && new Date(order.dueDate) < new Date()
             return (
               <div key={order.id} className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <span className="font-medium text-gray-900">{order.wholesalerName}</span>
-                    <span className="text-xs text-gray-400 ml-2">{new Date(order.createdAt).toLocaleDateString('tr-TR')}</span>
+                    <span className="text-xs text-gray-400">{new Date(order.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}</span>
+                    {order.dueDate && (
+                      <span className={`text-xs ml-2 font-medium ${isOverdue ? 'text-red-600' : 'text-gray-500'}`}>
+                        Vade: {new Date(order.dueDate).toLocaleDateString('tr-TR')} {isOverdue && '⚠️'}
+                      </span>
+                    )}
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${color}`}>{label}</span>
                 </div>
@@ -50,8 +64,11 @@ export default function StoreOrders() {
                     </div>
                   ))}
                 </div>
-                <div className="border-t border-gray-100 mt-2 pt-2 flex justify-between">
-                  <span className="text-sm text-gray-500">{order.note && `Not: ${order.note}`}</span>
+                <div className="border-t border-gray-100 mt-2 pt-2 flex justify-between items-end">
+                  <div>
+                    {order.note && <p className="text-xs text-gray-400">Notunuz: {order.note}</p>}
+                    {order.wholesalerNote && <p className="text-xs text-blue-600">Toptancı notu: {order.wholesalerNote}</p>}
+                  </div>
                   <span className="font-semibold text-gray-900">₺{order.totalAmount.toFixed(2)}</span>
                 </div>
               </div>

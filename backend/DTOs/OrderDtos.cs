@@ -10,12 +10,16 @@ public class OrderDto
     public string Status { get; set; } = null!;
     public decimal TotalAmount { get; set; }
     public string? Note { get; set; }
+    public string? WholesalerNote { get; set; }
+    public DateTime? DueDate { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
     public List<OrderItemDto> Items { get; set; } = [];
 }
 
 public class OrderItemDto
 {
+    public Guid Id { get; set; }
     public Guid ProductId { get; set; }
     public string ProductName { get; set; } = null!;
     public int Quantity { get; set; }
@@ -33,6 +37,19 @@ public class CreateOrderItemDto
 {
     public Guid ProductId { get; set; }
     public int Quantity { get; set; }
+}
+
+public class ConfirmOrderDto
+{
+    public string? WholesalerNote { get; set; }
+    public DateTime? DueDate { get; set; }
+    public bool CreateCreditEntry { get; set; } = true; // Veresiye kaydı oluştur
+}
+
+public class UpdateOrderItemsDto
+{
+    public List<CreateOrderItemDto> Items { get; set; } = [];
+    public string? WholesalerNote { get; set; }
 }
 
 public record UpdateOrderStatusDto(string Status);

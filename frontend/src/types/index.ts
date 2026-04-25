@@ -44,8 +44,40 @@ export interface Order {
   status: OrderStatus
   totalAmount: number
   note?: string
+  wholesalerNote?: string
+  dueDate?: string
   createdAt: string
+  updatedAt?: string
   items: OrderItem[]
+}
+
+export interface CreditTransaction {
+  id: string
+  type: 'OrderDebit' | 'ManualDebit' | 'Payment'
+  amount: number
+  description: string
+  dueDate?: string
+  orderId?: string
+  createdAt: string
+}
+
+export interface CreditSummary {
+  storeId: string
+  storeName: string
+  totalDebt: number
+  totalPaid: number
+  balance: number
+  overdueAmount: number
+  transactions: CreditTransaction[]
+}
+
+export interface AssignedWholesaler {
+  wholesalerId: string
+  companyName: string
+  phone?: string
+  address?: string
+  description?: string
+  assignedAt: string
 }
 
 export type OrderStatus = 'Pending' | 'Confirmed' | 'Rejected' | 'Delivered' | 'Cancelled'

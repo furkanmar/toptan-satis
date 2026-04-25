@@ -41,7 +41,25 @@ public class OrdersController(OrderService orderService, AppDbContext db) : Cont
         return await orderService.GetForWholesalerAsync(wholesalerId);
     }
 
-    // Toptancı — sipariş durumu güncelle
+    // Toptancı — sipariş onayla (vade + veresiye)
+    [HttpPost("{id:guid}/confirm")]
+    [Authorize(Roles = "Wholesaler")]
+    public async Task<OrderDto> Confirm(Guid id, [FromBody] ConfirmOrderDto dto)
+    {
+        var wholesalerId = await GetWholesalerId();
+        return await orderService.ConfirmAsync(id, wholesalerId, dto);
+    }
+
+    // Toptancı — sipariş içeriğini düzenle
+    [HttpPut("{id:guid}/items")]
+    [Authorize(Roles = "Wholesaler")]
+    public async Task<OrderDto> UpdateItems(Guid id, [FromBody] UpdateOrderItemsDto dto)
+    {
+        var wholesalerId = await GetWholesalerId();
+        return await orderService.UpdateItemsAsync(id, wholesalerId, dto);
+    }
+
+    // Toptancı — sipariş durumu güncelle (red / teslim / iptal)
     [HttpPatch("{id:guid}/status")]
     [Authorize(Roles = "Wholesaler")]
     public async Task<OrderDto> UpdateStatus(Guid id, [FromBody] UpdateOrderStatusDto dto)

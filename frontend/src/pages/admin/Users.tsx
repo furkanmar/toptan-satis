@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Layout from '../../components/Layout'
-import { api } from '../../api/client'
+import { api, storeWholesalersApi } from '../../api/client'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard' },
@@ -54,6 +54,14 @@ export default function AdminUsers() {
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       api.patch(`/admin/users/${id}`, { isActive }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] })
+  })
+
+  const [assignModal, setAssignModal] = useState<{ storeId: string; storeName: string } | null>(null)
+  const [selectedWholesalerForAssign, setSelectedWholesalerForAssign] = useState('')
+
+  const assignMutation = useMutation({
+    mutationFn: () => storeWholesalersApi.assign(assignModal!.storeId, selectedWholesalerForAssign),
+    onSuccess: () => { setAssignModal(null); setSelectedWholesalerForAssign('') }
   })
 
   const wholesalers = users.filter(u => u.role === 'Wholesaler')
@@ -193,6 +201,7 @@ export default function AdminUsers() {
                     <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Email</th>
                     <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Tarih</th>
                     <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">Durum</th>
+                    <th className="text-center px-4 py-2 text-xs font-medium text-gray-500">Atama</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -209,6 +218,14 @@ export default function AdminUsers() {
                           {u.isActive ? 'Aktif' : 'Pasif'}
                         </button>
                       </td>
+                      <td className="px-4 py-2.5 text-center">
+                        <button
+                          onClick={() => setAssignModal({ storeId: u.id, storeName: u.store?.storeName ?? u.email })}
+                          className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                        >
+                          Toptancı Ata
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -217,6 +234,41 @@ export default function AdminUsers() {
           </div>
         </div>
       </div>
+
+      {/* Toptancı atama modal */}
+      {assignModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="font-bold text-gray-900 mb-1">Toptancı Ata</h2>
+            <p className="text-sm text-gray-500 mb-4">{assignModal.storeName}</p>
+            <select
+              value={selectedWholesalerForAssign}
+              onChange={e => setSelectedWholesalerForAssign(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+            >
+              <option value="">Toptancı seçin...</option>
+              {wholesalers.map(w => (
+                <option key={w.id} value={w.id}>{w.wholesaler?.companyName ?? w.email}</option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <button
+                onClick={() => assignMutation.mutate()}
+                disabled={!selectedWholesalerForAssign || assignMutation.isPending}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {assignMutation.isPending ? 'Atanıyor...' : 'Ata'}
+              </button>
+              <button
+                onClick={() => { setAssignModal(null); setSelectedWholesalerForAssign('') }}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+              >
+                İptal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   )
 }

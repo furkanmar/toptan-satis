@@ -13,6 +13,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<StoreWholesaler> StoreWholesalers => Set<StoreWholesaler>();
+    public DbSet<CreditTransaction> CreditTransactions => Set<CreditTransaction>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -45,5 +47,29 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         // Category slug unique
         mb.Entity<Category>().HasIndex(c => c.Slug).IsUnique();
+
+        // StoreWholesaler — composite PK
+        mb.Entity<StoreWholesaler>()
+            .HasKey(sw => new { sw.StoreId, sw.WholesalerId });
+
+        mb.Entity<StoreWholesaler>()
+            .HasOne(sw => sw.Store)
+            .WithMany(s => s.StoreWholesalers)
+            .HasForeignKey(sw => sw.StoreId);
+
+        mb.Entity<StoreWholesaler>()
+            .HasOne(sw => sw.Wholesaler)
+            .WithMany(w => w.StoreWholesalers)
+            .HasForeignKey(sw => sw.WholesalerId);
+
+        // CreditTransaction
+        mb.Entity<CreditTransaction>().Property(c => c.Amount).HasPrecision(18, 2);
+        mb.Entity<CreditTransaction>().Property(c => c.Type).HasConversion<string>();
+
+        mb.Entity<CreditTransaction>()
+            .HasOne(c => c.Order)
+            .WithMany(o => o.CreditTransactions)
+            .HasForeignKey(c => c.OrderId)
+            .IsRequired(false);
     }
 }

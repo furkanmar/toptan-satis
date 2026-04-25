@@ -59,10 +59,38 @@ export const ordersApi = {
     api.get('/orders/my').then(r => r.data),
   incoming: () =>
     api.get('/orders/incoming').then(r => r.data),
+  confirm: (id: string, data: { wholesalerNote?: string; dueDate?: string; createCreditEntry?: boolean }) =>
+    api.post(`/orders/${id}/confirm`, data).then(r => r.data),
+  updateItems: (id: string, data: unknown) =>
+    api.put(`/orders/${id}/items`, data).then(r => r.data),
   updateStatus: (id: string, status: string) =>
     api.patch(`/orders/${id}/status`, { status }).then(r => r.data),
   getAll: () =>
     api.get('/orders').then(r => r.data),
+}
+
+// ─── Store-Wholesaler ─────────────────────────────────────────────────────────
+export const storeWholesalersApi = {
+  myWholesalers: () =>
+    api.get('/store-wholesalers/my').then(r => r.data),
+  assign: (storeId: string, wholesalerId: string) =>
+    api.post('/store-wholesalers', { storeId, wholesalerId }).then(r => r.data),
+  remove: (storeId: string, wholesalerId: string) =>
+    api.delete('/store-wholesalers', { data: { storeId, wholesalerId } }).then(r => r.data),
+  getForStore: (storeId: string) =>
+    api.get(`/store-wholesalers/store/${storeId}`).then(r => r.data),
+}
+
+// ─── Credit ──────────────────────────────────────────────────────────────────
+export const creditApi = {
+  getStoreCredit: (storeId: string) =>
+    api.get(`/credit/store/${storeId}`).then(r => r.data),
+  getWholesalerCredit: (wholesalerId: string) =>
+    api.get(`/credit/wholesaler/${wholesalerId}`).then(r => r.data),
+  getAllStores: () =>
+    api.get('/credit/all-stores').then(r => r.data),
+  addTransaction: (data: unknown) =>
+    api.post('/credit', data).then(r => r.data),
 }
 
 // ─── Wholesalers ─────────────────────────────────────────────────────────────

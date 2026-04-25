@@ -13,4 +13,6 @@ public class Store
     // Navigation
     public User User { get; set; } = null!;
     public ICollection<Order> Orders { get; set; } = [];
+    public ICollection<StoreWholesaler> StoreWholesalers { get; set; } = [];
+    public ICollection<CreditTransaction> CreditTransactions { get; set; } = [];
 }

@@ -1,28 +1,40 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import Layout from '../../components/Layout'
-import { productsApi, categoriesApi, ordersApi } from '../../api/client'
-import type { Product, Category } from '../../types'
+import { productsApi, categoriesApi, ordersApi, creditApi } from '../../api/client'
+import type { Product, Category, CreditSummary } from '../../types'
 
-const NAV = [
-  { to: '/store', label: 'Ürünler' },
-  { to: '/store/orders', label: 'Siparişlerim' }
+const NAV = (wholesalerId: string) => [
+  { to: `/store/${wholesalerId}`, label: 'Ürünler' },
+  { to: `/store/${wholesalerId}/orders`, label: 'Siparişlerim' },
+  { to: `/store/${wholesalerId}/credit`, label: 'Veresiye' },
+  { to: '/store', label: '← Toptancı Seç' }
 ]
 
 export default function StoreHome() {
+  const { wholesalerId } = useParams<{ wholesalerId: string }>()
+  const navigate = useNavigate()
   const [cart, setCart] = useState<Map<string, { product: Product; qty: number }>>(new Map())
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>()
   const [orderNote, setOrderNote] = useState('')
   const [orderSuccess, setOrderSuccess] = useState(false)
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
-    queryKey: ['products', selectedCategory],
-    queryFn: () => productsApi.getAll({ categoryId: selectedCategory })
+    queryKey: ['products', wholesalerId, selectedCategory],
+    queryFn: () => productsApi.getAll({ wholesalerId, categoryId: selectedCategory }),
+    enabled: !!wholesalerId
   })
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['categories'],
     queryFn: categoriesApi.getAll
+  })
+
+  const { data: credit } = useQuery<CreditSummary>({
+    queryKey: ['credit', wholesalerId],
+    queryFn: () => creditApi.getWholesalerCredit(wholesalerId!),
+    enabled: !!wholesalerId
   })
 
   const addToCart = (product: Product) => {
@@ -37,28 +49,48 @@ export default function StoreHome() {
   const cartItems = [...cart.values()]
   const cartTotal = cartItems.reduce((sum, { product, qty }) => sum + product.price * qty, 0)
 
-  const placeOrder = async () => {
-    if (cartItems.length === 0) return
-    try {
-      await ordersApi.create({
-        note: orderNote,
-        items: cartItems.map(({ product, qty }) => ({ productId: product.id, quantity: qty }))
-      })
+  const placeOrderMutation = useMutation({
+    mutationFn: () => ordersApi.create({
+      note: orderNote,
+      items: cartItems.map(({ product, qty }) => ({ productId: product.id, quantity: qty }))
+    }),
+    onSuccess: () => {
       setCart(new Map())
       setOrderNote('')
       setOrderSuccess(true)
       setTimeout(() => setOrderSuccess(false), 3000)
-    } catch (err) {
-      alert('Sipariş gönderilemedi')
-    }
-  }
+    },
+    onError: () => alert('Sipariş gönderilemedi')
+  })
+
+  const nav = NAV(wholesalerId ?? '')
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout navLinks={nav}>
+      {/* Veresiye özet şeridi */}
+      {credit && credit.balance > 0 && (
+        <div
+          className={`mb-4 rounded-xl border px-4 py-3 flex items-center justify-between cursor-pointer hover:opacity-90 transition-opacity ${credit.overdueAmount > 0 ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}
+          onClick={() => navigate(`/store/${wholesalerId}/credit`)}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-lg">{credit.overdueAmount > 0 ? '⚠️' : '💰'}</span>
+            <div>
+              <p className={`text-sm font-semibold ${credit.overdueAmount > 0 ? 'text-red-800' : 'text-blue-800'}`}>
+                Veresiye Bakiyesi: ₺{credit.balance.toFixed(2)}
+              </p>
+              {credit.overdueAmount > 0 && (
+                <p className="text-xs text-red-600">Vadesi geçmiş: ₺{credit.overdueAmount.toFixed(2)}</p>
+              )}
+            </div>
+          </div>
+          <span className="text-xs text-gray-400">Detay →</span>
+        </div>
+      )}
+
       <div className="flex gap-6">
         {/* Ürün listesi */}
         <div className="flex-1">
-          {/* Kategori filtresi */}
           <div className="flex gap-2 mb-4 flex-wrap">
             <button
               onClick={() => setSelectedCategory(undefined)}
@@ -86,14 +118,12 @@ export default function StoreHome() {
                 return (
                   <div key={p.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
                     <div className="aspect-square bg-gray-100">
-                      {mainImg ? (
-                        <img src={mainImg.url} alt={p.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-300 text-4xl">📦</div>
-                      )}
+                      {mainImg
+                        ? <img src={mainImg.url} alt={p.name} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center text-gray-300 text-4xl">📦</div>
+                      }
                     </div>
                     <div className="p-3">
-                      <p className="text-xs text-gray-500 mb-1">{p.wholesalerName}</p>
                       <p className="font-medium text-sm text-gray-900 mb-1 truncate">{p.name}</p>
                       <p className="text-blue-600 font-bold text-sm mb-1">₺{p.price.toFixed(2)} / {p.unit}</p>
                       <p className="text-xs text-gray-400 mb-2">Min: {p.minOrderQty} {p.unit}</p>
@@ -136,10 +166,7 @@ export default function StoreHome() {
                           className="w-5 h-5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs flex items-center justify-center"
                         >−</button>
                         <span className="w-6 text-center font-medium">{qty}</span>
-                        <button
-                          onClick={() => addToCart(product)}
-                          className="w-5 h-5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs flex items-center justify-center"
-                        >+</button>
+                        <button onClick={() => addToCart(product)} className="w-5 h-5 rounded bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs flex items-center justify-center">+</button>
                       </div>
                     </div>
                   ))}
@@ -157,14 +184,13 @@ export default function StoreHome() {
                   className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 mb-3 resize-none h-16 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
-                  onClick={placeOrder}
-                  className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                  onClick={() => placeOrderMutation.mutate()}
+                  disabled={placeOrderMutation.isPending}
+                  className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
-                  Sipariş Ver
+                  {placeOrderMutation.isPending ? 'Gönderiliyor...' : 'Sipariş Ver'}
                 </button>
-                {orderSuccess && (
-                  <div className="mt-2 text-center text-xs text-green-600 font-medium">✓ Sipariş gönderildi</div>
-                )}
+                {orderSuccess && <div className="mt-2 text-center text-xs text-green-600 font-medium">✓ Sipariş gönderildi</div>}
               </>
             )}
           </div>
