@@ -116,6 +116,8 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
     Log.Information("Database migrated");
+    await DbSeeder.SeedAsync(db);
+    Log.Information("Database seeded");
 }
 
-app.Run();
+await app.RunAsync();
