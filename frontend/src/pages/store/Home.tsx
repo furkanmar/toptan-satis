@@ -27,8 +27,9 @@ export default function StoreHome() {
   })
 
   const { data: categories = [] } = useQuery<Category[]>({
-    queryKey: ['categories'],
-    queryFn: categoriesApi.getAll
+    queryKey: ['categories', wholesalerId],
+    queryFn: () => categoriesApi.getAll(wholesalerId),
+    enabled: !!wholesalerId
   })
 
   const { data: credit } = useQuery<CreditSummary>({

@@ -25,8 +25,8 @@ public class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddlewa
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Unhandled exception");
-            await WriteError(context, HttpStatusCode.InternalServerError, "Sunucu hatası");
+            logger.LogError(ex, "Unhandled exception: {Type} — {Message}", ex.GetType().Name, ex.Message);
+            await WriteError(context, HttpStatusCode.InternalServerError, $"Sunucu hatası: [{ex.GetType().Name}] {ex.Message}");
         }
     }
 
