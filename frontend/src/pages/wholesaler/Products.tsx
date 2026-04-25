@@ -29,8 +29,9 @@ export default function WholesalerProducts() {
   })
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
-    queryKey: ['my-products'],
-    queryFn: () => productsApi.getAll()
+    queryKey: ['my-products', profileId],
+    queryFn: () => productsApi.getAll({ wholesalerId: profileId ?? undefined }),
+    enabled: !!profileId
   })
 
   const { data: categories = [] } = useQuery<Category[]>({

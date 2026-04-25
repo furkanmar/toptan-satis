@@ -61,7 +61,10 @@ export default function StoreHome() {
       setOrderSuccess(true)
       setTimeout(() => setOrderSuccess(false), 3000)
     },
-    onError: () => alert('Sipariş gönderilemedi')
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+      alert(msg ?? 'Sipariş gönderilemedi')
+    }
   })
 
   const nav = NAV(wholesalerId ?? '')

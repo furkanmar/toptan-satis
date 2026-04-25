@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Layout from '../../components/Layout'
 import { ordersApi } from '../../api/client'
-import type { Order } from '../../types'
+import type { Order, OrderItem } from '../../types'
 
 const NAV = [
   { to: '/wholesaler', label: 'Ana Sayfa' },
@@ -22,12 +22,17 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   Cancelled: { label: 'İptal',      color: 'bg-gray-100 text-gray-600' }
 }
 
+interface EditItem { productId: string; productName: string; quantity: number; unitPrice: number }
+
 export default function WholesalerOrders() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('pending')
   const [confirmModal, setConfirmModal] = useState<Order | null>(null)
   const [confirmForm, setConfirmForm] = useState({ wholesalerNote: '', dueDate: '', createCreditEntry: true })
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null)
+  const [editItems, setEditItems] = useState<EditItem[]>([])
+  const [editNote, setEditNote] = useState('')
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ['incoming-orders'],
@@ -38,7 +43,6 @@ export default function WholesalerOrders() {
   const pending = orders.filter(o => o.status === 'Pending')
   const confirmed = orders.filter(o => o.status === 'Confirmed')
   const history = orders.filter(o => ['Delivered', 'Rejected', 'Cancelled'].includes(o.status))
-
   const tabOrders: Record<Tab, Order[]> = { pending, confirmed, history }
 
   const confirmMutation = useMutation({
@@ -64,6 +68,36 @@ export default function WholesalerOrders() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['incoming-orders'] })
   })
 
+  const updateItemsMutation = useMutation({
+    mutationFn: (orderId: string) => ordersApi.updateItems(orderId, {
+      items: editItems.filter(i => i.quantity > 0).map(i => ({ productId: i.productId, quantity: i.quantity })),
+      wholesalerNote: editNote || undefined
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['incoming-orders'] })
+      setEditingOrderId(null)
+      setEditItems([])
+      setEditNote('')
+    }
+  })
+
+  const startEdit = (order: Order) => {
+    setEditingOrderId(order.id)
+    setEditItems(order.items.map((i: OrderItem) => ({
+      productId: i.productId,
+      productName: i.productName,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice
+    })))
+    setEditNote(order.wholesalerNote ?? '')
+  }
+
+  const cancelEdit = () => {
+    setEditingOrderId(null)
+    setEditItems([])
+    setEditNote('')
+  }
+
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: 'pending', label: 'Bekleyen', count: pending.length },
     { key: 'confirmed', label: 'Onaylı / Teslim Bekleyen', count: confirmed.length },
@@ -74,7 +108,6 @@ export default function WholesalerOrders() {
     <Layout navLinks={NAV}>
       <h1 className="text-xl font-bold text-gray-900 mb-4">Siparişler</h1>
 
-      {/* Tablar */}
       <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg w-fit">
         {tabs.map(t => (
           <button
@@ -92,7 +125,6 @@ export default function WholesalerOrders() {
         ))}
       </div>
 
-      {/* Sipariş listesi */}
       {isLoading ? (
         <div className="text-center py-12 text-gray-400">Yükleniyor...</div>
       ) : tabOrders[tab].length === 0 ? (
@@ -102,14 +134,15 @@ export default function WholesalerOrders() {
           {tabOrders[tab].map(order => {
             const { label, color } = STATUS_LABELS[order.status] ?? { label: order.status, color: 'bg-gray-100 text-gray-600' }
             const isExpanded = expandedId === order.id
+            const isEditing = editingOrderId === order.id
             const isOverdue = order.dueDate && new Date(order.dueDate) < new Date()
 
             return (
               <div key={order.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                {/* Header satır */}
+                {/* Header */}
                 <div
                   className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
-                  onClick={() => setExpandedId(isExpanded ? null : order.id)}
+                  onClick={() => { if (!isEditing) setExpandedId(isExpanded ? null : order.id) }}
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-gray-400 text-xs">{isExpanded ? '▲' : '▼'}</span>
@@ -134,49 +167,110 @@ export default function WholesalerOrders() {
                 {/* Detay */}
                 {isExpanded && (
                   <div className="border-t border-gray-100 px-4 py-3">
-                    {/* Ürünler */}
-                    <div className="space-y-1 mb-3">
-                      {order.items.map((item, i) => (
-                        <div key={i} className="flex justify-between text-sm text-gray-600">
-                          <span>{item.productName} × {item.quantity}</span>
-                          <span>₺{item.total.toFixed(2)}</span>
+                    {isEditing ? (
+                      /* Düzenleme modu */
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 mb-2">Ürün miktarlarını düzenle (0 → kaldır):</p>
+                        <div className="space-y-2 mb-3">
+                          {editItems.map((item, i) => (
+                            <div key={item.productId} className="flex items-center justify-between gap-3">
+                              <span className="text-sm text-gray-700 flex-1">{item.productName}</span>
+                              <span className="text-xs text-gray-400">₺{item.unitPrice.toFixed(2)}/ad</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={item.quantity}
+                                onChange={e => {
+                                  const next = [...editItems]
+                                  next[i] = { ...item, quantity: parseInt(e.target.value) || 0 }
+                                  setEditItems(next)
+                                }}
+                                className="w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                              <span className="text-xs text-gray-500 w-16 text-right">
+                                ₺{(item.unitPrice * (parseInt(String(item.quantity)) || 0)).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-
-                    {/* Notlar */}
-                    {order.note && <p className="text-xs text-gray-500 mb-1">Mağaza notu: {order.note}</p>}
-                    {order.wholesalerNote && <p className="text-xs text-blue-600 mb-1">Toptancı notu: {order.wholesalerNote}</p>}
-
-                    {/* Aksiyonlar */}
-                    <div className="flex gap-2 mt-3">
-                      {order.status === 'Pending' && (
-                        <>
+                        <div className="mb-3">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Toptancı notu</label>
+                          <input
+                            value={editNote}
+                            onChange={e => setEditNote(e.target.value)}
+                            placeholder="Değişiklik notu..."
+                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="text-xs text-gray-500 mb-3">
+                          Yeni toplam: ₺{editItems.reduce((s, i) => s + i.unitPrice * (i.quantity || 0), 0).toFixed(2)}
+                        </div>
+                        <div className="flex gap-2">
                           <button
-                            onClick={() => setConfirmModal(order)}
-                            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
+                            onClick={() => updateItemsMutation.mutate(order.id)}
+                            disabled={updateItemsMutation.isPending || editItems.every(i => i.quantity <= 0)}
+                            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
                           >
-                            Onayla
+                            {updateItemsMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
                           </button>
                           <button
-                            onClick={() => rejectMutation.mutate(order.id)}
-                            disabled={rejectMutation.isPending}
-                            className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50 transition-colors"
+                            onClick={cancelEdit}
+                            className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-xs hover:bg-gray-50 transition-colors"
                           >
-                            Reddet
+                            İptal
                           </button>
-                        </>
-                      )}
-                      {order.status === 'Confirmed' && (
-                        <button
-                          onClick={() => deliverMutation.mutate(order.id)}
-                          disabled={deliverMutation.isPending}
-                          className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors"
-                        >
-                          Teslim Edildi
-                        </button>
-                      )}
-                    </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Normal görünüm */
+                      <>
+                        <div className="space-y-1 mb-3">
+                          {order.items.map((item, i) => (
+                            <div key={i} className="flex justify-between text-sm text-gray-600">
+                              <span>{item.productName} × {item.quantity}</span>
+                              <span>₺{item.total.toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {order.note && <p className="text-xs text-gray-500 mb-1">Mağaza notu: {order.note}</p>}
+                        {order.wholesalerNote && <p className="text-xs text-blue-600 mb-1">Toptancı notu: {order.wholesalerNote}</p>}
+
+                        <div className="flex gap-2 mt-3">
+                          {order.status === 'Pending' && (
+                            <>
+                              <button
+                                onClick={() => setConfirmModal(order)}
+                                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
+                              >
+                                Onayla
+                              </button>
+                              <button
+                                onClick={() => startEdit(order)}
+                                className="px-3 py-1.5 border border-blue-300 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-50 transition-colors"
+                              >
+                                Düzenle
+                              </button>
+                              <button
+                                onClick={() => rejectMutation.mutate(order.id)}
+                                disabled={rejectMutation.isPending}
+                                className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-medium hover:bg-red-50 transition-colors"
+                              >
+                                Reddet
+                              </button>
+                            </>
+                          )}
+                          {order.status === 'Confirmed' && (
+                            <button
+                              onClick={() => deliverMutation.mutate(order.id)}
+                              disabled={deliverMutation.isPending}
+                              className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors"
+                            >
+                              Teslim Edildi
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

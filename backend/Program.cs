@@ -9,6 +9,9 @@ using WholesaleApi.Data;
 using WholesaleApi.Middleware;
 using WholesaleApi.Services;
 
+// Npgsql 6+: DateTime.Unspecified → timestamp with time zone uyumu
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ─── Serilog ────────────────────────────────────────────────────────────────
