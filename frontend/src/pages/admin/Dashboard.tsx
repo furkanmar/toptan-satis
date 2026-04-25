@@ -4,7 +4,8 @@ import { ordersApi, wholesalersApi } from '../../api/client'
 import type { Order, Wholesaler } from '../../types'
 
 const NAV = [
-  { to: '/admin', label: 'Dashboard' }
+  { to: '/admin', label: 'Dashboard' },
+  { to: '/admin/users', label: 'Kullanıcılar' }
 ]
 
 export default function AdminDashboard() {
