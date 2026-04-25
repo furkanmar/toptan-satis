@@ -31,7 +31,7 @@ services:
       Jwt__Audience: ${JWT_AUDIENCE:-marifoglu.trade}
       Seq__Url: http://seq:80
     ports:
-      - "5000:8080"
+      - "5001:8080"
     volumes:
       - uploads_data:/app/wwwroot/uploads
     depends_on:
