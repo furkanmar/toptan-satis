@@ -1,0 +1,18 @@
+.env
+*.user
+.DS_Store
+
+# .NET
+backend/**/bin/
+backend/**/obj/
+backend/**/*.user
+
+# Node
+frontend/**/node_modules/
+frontend/**/.next/
+frontend/**/dist/
+frontend/**/.env.local
+
+# Docker volumes
+postgres_data/
+uploads_data/

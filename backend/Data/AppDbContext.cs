@@ -1,0 +1,49 @@
+using Microsoft.EntityFrameworkCore;
+using WholesaleApi.Entities;
+
+namespace WholesaleApi.Data;
+
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+{
+    public DbSet<User> Users => Set<User>();
+    public DbSet<Wholesaler> Wholesalers => Set<Wholesaler>();
+    public DbSet<Store> Stores => Set<Store>();
+    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+
+    protected override void OnModelCreating(ModelBuilder mb)
+    {
+        // User
+        mb.Entity<User>().HasIndex(u => u.Email).IsUnique();
+        mb.Entity<User>().Property(u => u.Role).HasConversion<string>();
+
+        // Wholesaler → User (1:1)
+        mb.Entity<Wholesaler>()
+            .HasOne(w => w.User)
+            .WithOne(u => u.Wholesaler)
+            .HasForeignKey<Wholesaler>(w => w.UserId);
+
+        // Store → User (1:1)
+        mb.Entity<Store>()
+            .HasOne(s => s.User)
+            .WithOne(u => u.Store)
+            .HasForeignKey<Store>(s => s.UserId);
+
+        // Product
+        mb.Entity<Product>().Property(p => p.Price).HasPrecision(18, 2);
+        mb.Entity<Product>().Property(p => p.Unit).HasConversion<string>();
+
+        // Order
+        mb.Entity<Order>().Property(o => o.TotalAmount).HasPrecision(18, 2);
+        mb.Entity<Order>().Property(o => o.Status).HasConversion<string>();
+
+        // OrderItem — fiyat snapshot
+        mb.Entity<OrderItem>().Property(oi => oi.UnitPrice).HasPrecision(18, 2);
+
+        // Category slug unique
+        mb.Entity<Category>().HasIndex(c => c.Slug).IsUnique();
+    }
+}

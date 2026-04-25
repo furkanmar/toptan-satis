@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: wholesale_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-wholesaledb}
+      POSTGRES_USER: ${POSTGRES_USER:-wholesale}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "5433:5432"   # 5432 already used by existing Pi postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wholesale}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wholesale_api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=${POSTGRES_DB:-wholesaledb};Username=${POSTGRES_USER:-wholesale};Password=${POSTGRES_PASSWORD:-changeme}
+      Jwt__Secret: ${JWT_SECRET:-supersecretkey_changeme_min32chars!!}
+      Jwt__Issuer: ${JWT_ISSUER:-marifoglu.trade}
+      Jwt__Audience: ${JWT_AUDIENCE:-marifoglu.trade}
+      Seq__Url: http://seq:80
+    ports:
+      - "5000:8080"
+    volumes:
+      - uploads_data:/app/wwwroot/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: wholesale_frontend
+    ports:
+      - "5100:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  seq:
+    image: datalust/seq:latest
+    container_name: wholesale_seq
+    environment:
+      ACCEPT_EULA: Y
+    ports:
+      - "5341:80"
+    volumes:
+      - seq_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  uploads_data:
+  seq_data:
