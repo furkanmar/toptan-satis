@@ -20,7 +20,7 @@ export default function LoginPage() {
       const data: AuthResponse = await authApi.login(email, password)
       login(data.token, data.role, data.userId, data.displayName, data.profileId)
       if (data.role === 'Admin') navigate('/admin')
-      else if (data.role === 'Wholesaler') navigate('/wholesaler/products')
+      else if (data.role === 'Wholesaler') navigate('/wholesaler')
       else navigate('/store')
     } catch {
       setError('Geçersiz email veya şifre')

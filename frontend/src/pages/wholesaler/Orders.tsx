@@ -46,16 +46,26 @@ export default function WholesalerOrders() {
   const tabOrders: Record<Tab, Order[]> = { pending, confirmed, history }
 
   const confirmMutation = useMutation({
-    mutationFn: (order: Order) => ordersApi.confirm(order.id, {
-      wholesalerNote: confirmForm.wholesalerNote || undefined,
-      dueDate: confirmForm.dueDate || undefined,
-      createCreditEntry: confirmForm.createCreditEntry
-    }),
+    mutationFn: ({ order, force = false }: { order: Order; force?: boolean }) =>
+      ordersApi.confirm(order.id, {
+        wholesalerNote: confirmForm.wholesalerNote || undefined,
+        dueDate: confirmForm.dueDate || undefined,
+        createCreditEntry: confirmForm.createCreditEntry,
+        forceConfirm: force
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['incoming-orders'] })
       qc.invalidateQueries({ queryKey: ['credit-all-stores'] })
       setConfirmModal(null)
       setConfirmForm({ wholesalerNote: '', dueDate: '', createCreditEntry: true })
+    },
+    onError: (err: unknown, variables) => {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? ''
+      if (msg.includes('yeterli stok yok')) {
+        if (window.confirm(`⚠️ ${msg}\n\nYine de onaylayıp stoku eksi'ye düşürmek istiyor musunuz?`)) {
+          confirmMutation.mutate({ order: variables.order, force: true })
+        }
+      }
     }
   })
 
@@ -319,7 +329,7 @@ export default function WholesalerOrders() {
 
             <div className="flex gap-2 mt-5">
               <button
-                onClick={() => confirmMutation.mutate(confirmModal)}
+                onClick={() => confirmMutation.mutate({ order: confirmModal })}
                 disabled={confirmMutation.isPending}
                 className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >

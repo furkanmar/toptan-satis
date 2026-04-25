@@ -43,7 +43,8 @@ public class ConfirmOrderDto
 {
     public string? WholesalerNote { get; set; }
     public DateTime? DueDate { get; set; }
-    public bool CreateCreditEntry { get; set; } = true; // Veresiye kaydı oluştur
+    public bool CreateCreditEntry { get; set; } = true;
+    public bool ForceConfirm { get; set; } = false; // Stok yetersizse de onayla (eksi stok)
 }
 
 public class UpdateOrderItemsDto

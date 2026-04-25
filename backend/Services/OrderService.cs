@@ -62,9 +62,9 @@ public class OrderService(AppDbContext db)
         foreach (var item in order.Items)
         {
             var product = products.First(p => p.Id == item.ProductId);
-            if (product.Stock < item.Quantity)
+            if (product.Stock < item.Quantity && !dto.ForceConfirm)
                 throw new InvalidOperationException($"'{product.Name}' için yeterli stok yok (mevcut: {product.Stock})");
-            product.Stock -= item.Quantity;
+            product.Stock -= item.Quantity; // ForceConfirm ile negatife düşebilir
         }
 
         order.Status = OrderStatus.Confirmed;
