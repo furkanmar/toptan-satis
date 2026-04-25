@@ -13,6 +13,7 @@ import WholesalerOrders from './pages/wholesaler/Orders'
 // Admin sayfaları
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminUsers from './pages/admin/Users'
+import AdminCategories from './pages/admin/Categories'
 
 function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
   const { isAuthenticated, role } = useAuthStore()
@@ -47,6 +48,7 @@ export default function App() {
         {/* Admin */}
         <Route path="/admin" element={<RequireAuth roles={['Admin']}><AdminDashboard /></RequireAuth>} />
         <Route path="/admin/users" element={<RequireAuth roles={['Admin']}><AdminUsers /></RequireAuth>} />
+        <Route path="/admin/categories" element={<RequireAuth roles={['Admin']}><AdminCategories /></RequireAuth>} />
       </Routes>
     </BrowserRouter>
   )

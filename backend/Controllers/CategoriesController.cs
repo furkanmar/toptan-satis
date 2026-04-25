@@ -30,6 +30,19 @@ public class CategoriesController(AppDbContext db) : ControllerBase
         await db.SaveChangesAsync();
         return Ok(cat);
     }
+
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var cat = await db.Categories.FindAsync(id);
+        if (cat is null) return NotFound();
+        if (await db.Products.AnyAsync(p => p.CategoryId == id))
+            throw new InvalidOperationException("Bu kategoride ürün var, önce ürünleri taşı");
+        db.Categories.Remove(cat);
+        await db.SaveChangesAsync();
+        return Ok();
+    }
 }
 
 public record CreateCategoryDto(string Name);

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Layout from '../../components/Layout'
 import { productsApi, categoriesApi } from '../../api/client'
@@ -12,7 +12,16 @@ const NAV = [
 export default function WholesalerProducts() {
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [form, setForm] = useState({ name: '', description: '', price: '', unit: 'Adet', minOrderQty: '1', stock: '0', categoryId: '' })
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const uploadMutation = useMutation({
+    mutationFn: ({ id, file }: { id: string; file: File }) => productsApi.uploadImage(id, file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['my-products'] })
+    }
+  })
 
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ['my-products'],
@@ -150,25 +159,75 @@ export default function WholesalerProducts() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {products.map((p: Product) => (
-                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <span className="font-medium text-gray-900">{p.name}</span>
-                    {p.description && <span className="block text-xs text-gray-400 truncate max-w-xs">{p.description}</span>}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{p.categoryName}</td>
-                  <td className="px-4 py-3 text-right font-medium text-gray-900">₺{p.price.toFixed(2)} / {p.unit}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{p.stock}</td>
-                  <td className="px-4 py-3 text-center">
-                    <button
-                      onClick={() => toggleActive.mutate({ id: p.id, isActive: !p.isActive })}
-                      className={`px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${p.isActive ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+              {products.map((p: Product) => {
+                const mainImg = p.images.find(i => i.isMain) ?? p.images[0]
+                const isSelected = selectedProduct?.id === p.id
+                return (
+                  <>
+                    <tr
+                      key={p.id}
+                      onClick={() => setSelectedProduct(isSelected ? null : p)}
+                      className="hover:bg-gray-50 transition-colors cursor-pointer"
                     >
-                      {p.isActive ? 'Aktif' : 'Pasif'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden shrink-0">
+                            {mainImg
+                              ? <img src={mainImg.url} alt={p.name} className="w-full h-full object-cover" />
+                              : <div className="w-full h-full flex items-center justify-center text-gray-300 text-lg">📦</div>
+                            }
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-900">{p.name}</span>
+                            {p.description && <span className="block text-xs text-gray-400 truncate max-w-xs">{p.description}</span>}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{p.categoryName}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900">₺{p.price.toFixed(2)} / {p.unit}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{p.stock}</td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={e => { e.stopPropagation(); toggleActive.mutate({ id: p.id, isActive: !p.isActive }) }}
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${p.isActive ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                        >
+                          {p.isActive ? 'Aktif' : 'Pasif'}
+                        </button>
+                      </td>
+                    </tr>
+                    {isSelected && (
+                      <tr key={`${p.id}-detail`} className="bg-blue-50 border-t border-blue-100">
+                        <td colSpan={5} className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-medium text-gray-600">Görseller:</span>
+                            {p.images.map(img => (
+                              <img key={img.id} src={img.url} alt="" className="w-12 h-12 rounded-lg object-cover border border-gray-200" />
+                            ))}
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={e => {
+                                const file = e.target.files?.[0]
+                                if (file) uploadMutation.mutate({ id: p.id, file })
+                                e.target.value = ''
+                              }}
+                            />
+                            <button
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={uploadMutation.isPending}
+                              className="px-3 py-1.5 border border-dashed border-blue-400 text-blue-600 rounded-lg text-xs hover:bg-blue-100 transition-colors disabled:opacity-50"
+                            >
+                              {uploadMutation.isPending ? 'Yükleniyor...' : '+ Görsel Ekle'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )
+              })}
             </tbody>
           </table>
           {products.length === 0 && (

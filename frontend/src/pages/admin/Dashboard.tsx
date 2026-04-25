@@ -5,7 +5,8 @@ import type { Order, Wholesaler } from '../../types'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard' },
-  { to: '/admin/users', label: 'Kullanıcılar' }
+  { to: '/admin/users', label: 'Kullanıcılar' },
+  { to: '/admin/categories', label: 'Kategoriler' }
 ]
 
 export default function AdminDashboard() {

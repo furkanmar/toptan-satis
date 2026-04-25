@@ -48,8 +48,25 @@ public class OrderService(AppDbContext db)
 
     public async Task<OrderDto> UpdateStatusAsync(Guid orderId, Guid wholesalerId, OrderStatus newStatus)
     {
-        var order = await db.Orders.FirstOrDefaultAsync(o => o.Id == orderId && o.WholesalerId == wholesalerId)
+        var order = await db.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == orderId && o.WholesalerId == wholesalerId)
             ?? throw new KeyNotFoundException("Sipariş bulunamadı");
+
+        // Sipariş onaylanınca stok düş
+        if (newStatus == OrderStatus.Confirmed && order.Status == OrderStatus.Pending)
+        {
+            var productIds = order.Items.Select(i => i.ProductId).ToList();
+            var products = await db.Products.Where(p => productIds.Contains(p.Id)).ToListAsync();
+
+            foreach (var item in order.Items)
+            {
+                var product = products.First(p => p.Id == item.ProductId);
+                if (product.Stock < item.Quantity)
+                    throw new InvalidOperationException($"'{product.Name}' için yeterli stok yok (mevcut: {product.Stock})");
+                product.Stock -= item.Quantity;
+            }
+        }
 
         order.Status = newStatus;
         order.UpdatedAt = DateTime.UtcNow;
