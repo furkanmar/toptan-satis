@@ -17,4 +17,5 @@ public class Wholesaler
     public ICollection<Order> Orders { get; set; } = [];
     public ICollection<StoreWholesaler> StoreWholesalers { get; set; } = [];
     public ICollection<CreditTransaction> CreditTransactions { get; set; } = [];
+    public ICollection<Category> Categories { get; set; } = [];
 }

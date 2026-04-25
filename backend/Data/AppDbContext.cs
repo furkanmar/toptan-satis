@@ -45,8 +45,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         // OrderItem — fiyat snapshot
         mb.Entity<OrderItem>().Property(oi => oi.UnitPrice).HasPrecision(18, 2);
 
-        // Category slug unique
-        mb.Entity<Category>().HasIndex(c => c.Slug).IsUnique();
+        // Category — per-wholesaler, FK optional
+        mb.Entity<Category>()
+            .HasOne(c => c.Wholesaler)
+            .WithMany(w => w.Categories)
+            .HasForeignKey(c => c.WholesalerId)
+            .IsRequired(false);
 
         // StoreWholesaler — composite PK
         mb.Entity<StoreWholesaler>()

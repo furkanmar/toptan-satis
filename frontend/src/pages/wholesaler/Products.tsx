@@ -2,15 +2,20 @@ import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Layout from '../../components/Layout'
 import { productsApi, categoriesApi } from '../../api/client'
+import { useAuthStore } from '../../store/authStore'
 import type { Product, Category } from '../../types'
 
 const NAV = [
-  { to: '/wholesaler/products', label: 'Ürünlerim' },
-  { to: '/wholesaler/orders', label: 'Siparişler' }
+  { to: '/wholesaler', label: 'Ana Sayfa' },
+  { to: '/wholesaler/products', label: 'Ürünler' },
+  { to: '/wholesaler/orders', label: 'Siparişler' },
+  { to: '/wholesaler/credit', label: 'Veresiye' },
+  { to: '/wholesaler/settings', label: 'Ayarlar' }
 ]
 
 export default function WholesalerProducts() {
   const qc = useQueryClient()
+  const profileId = useAuthStore(s => s.profileId)
   const [showForm, setShowForm] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [form, setForm] = useState({ name: '', description: '', price: '', unit: 'Adet', minOrderQty: '1', stock: '0', categoryId: '' })
@@ -29,8 +34,9 @@ export default function WholesalerProducts() {
   })
 
   const { data: categories = [] } = useQuery<Category[]>({
-    queryKey: ['categories'],
-    queryFn: categoriesApi.getAll
+    queryKey: ['categories', profileId],
+    queryFn: () => categoriesApi.getAll(profileId ?? undefined),
+    enabled: !!profileId
   })
 
   const createMutation = useMutation({
@@ -129,7 +135,7 @@ export default function WholesalerProducts() {
           <div className="flex gap-2 mt-3">
             <button
               onClick={() => createMutation.mutate(form)}
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending || !form.name || !form.price || !form.categoryId}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {createMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}

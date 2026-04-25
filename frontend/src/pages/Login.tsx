@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const data: AuthResponse = await authApi.login(email, password)
-      login(data.token, data.role, data.userId, data.displayName)
+      login(data.token, data.role, data.userId, data.displayName, data.profileId)
       if (data.role === 'Admin') navigate('/admin')
       else if (data.role === 'Wholesaler') navigate('/wholesaler/products')
       else navigate('/store')

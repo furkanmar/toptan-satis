@@ -9,5 +9,6 @@ public class AuthResponseDto
     public string Token { get; set; } = null!;
     public string Role { get; set; } = null!;
     public Guid UserId { get; set; }
+    public Guid? ProfileId { get; set; }
     public string DisplayName { get; set; } = null!;
 }

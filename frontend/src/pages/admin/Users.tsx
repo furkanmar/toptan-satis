@@ -5,8 +5,7 @@ import { api, storeWholesalersApi } from '../../api/client'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard' },
-  { to: '/admin/users', label: 'Kullanıcılar' },
-  { to: '/admin/categories', label: 'Kategoriler' }
+  { to: '/admin/users', label: 'Kullanıcılar' }
 ]
 
 type UserRole = 'wholesaler' | 'store'
@@ -17,8 +16,8 @@ interface UserRecord {
   role: string
   isActive: boolean
   createdAt: string
-  wholesaler?: { companyName: string }
-  store?: { storeName: string }
+  wholesaler?: { id: string; companyName: string }
+  store?: { id: string; storeName: string }
 }
 
 const EMPTY_FORM = { email: '', password: '', companyName: '' }
@@ -220,7 +219,7 @@ export default function AdminUsers() {
                       </td>
                       <td className="px-4 py-2.5 text-center">
                         <button
-                          onClick={() => setAssignModal({ storeId: u.id, storeName: u.store?.storeName ?? u.email })}
+                          onClick={() => u.store && setAssignModal({ storeId: u.store.id, storeName: u.store.storeName })}
                           className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
                         >
                           Toptancı Ata
@@ -248,7 +247,7 @@ export default function AdminUsers() {
             >
               <option value="">Toptancı seçin...</option>
               {wholesalers.map(w => (
-                <option key={w.id} value={w.id}>{w.wholesaler?.companyName ?? w.email}</option>
+                <option key={w.wholesaler?.id} value={w.wholesaler?.id ?? ''}>{w.wholesaler?.companyName ?? w.email}</option>
               ))}
             </select>
             <div className="flex gap-2">

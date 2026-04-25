@@ -103,6 +103,10 @@ export const wholesalersApi = {
 
 // ─── Categories ──────────────────────────────────────────────────────────────
 export const categoriesApi = {
-  getAll: () =>
-    api.get('/categories').then(r => r.data),
+  getAll: (wholesalerId?: string) =>
+    api.get('/categories', { params: wholesalerId ? { wholesalerId } : undefined }).then(r => r.data),
+  create: (name: string) =>
+    api.post('/categories', { name }).then(r => r.data),
+  delete: (id: string) =>
+    api.delete(`/categories/${id}`).then(r => r.data),
 }

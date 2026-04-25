@@ -24,6 +24,12 @@ public class AuthService(AppDbContext db, TokenService tokenService)
             Token = token,
             Role = user.Role.ToString(),
             UserId = user.Id,
+            ProfileId = user.Role switch
+            {
+                UserRole.Wholesaler => user.Wholesaler?.Id,
+                UserRole.Store => user.Store?.Id,
+                _ => null
+            },
             DisplayName = user.Role switch
             {
                 UserRole.Wholesaler => user.Wholesaler?.CompanyName ?? user.Email,

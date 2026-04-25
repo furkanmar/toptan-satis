@@ -4,6 +4,7 @@ export interface AuthResponse {
   token: string
   role: UserRole
   userId: string
+  profileId?: string
   displayName: string
 }
 

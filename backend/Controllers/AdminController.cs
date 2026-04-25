@@ -24,8 +24,8 @@ public class AdminController(AppDbContext db) : ControllerBase
                 Role = u.Role.ToString(),
                 u.IsActive,
                 u.CreatedAt,
-                Wholesaler = u.Wholesaler == null ? null : new { u.Wholesaler.CompanyName },
-                Store = u.Store == null ? null : new { u.Store.StoreName }
+                Wholesaler = u.Wholesaler == null ? null : new { u.Wholesaler.Id, u.Wholesaler.CompanyName },
+                Store = u.Store == null ? null : new { u.Store.Id, u.Store.StoreName }
             })
             .ToListAsync();
 
