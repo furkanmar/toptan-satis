@@ -156,7 +156,7 @@ public class CatalogController(AppDbContext db, IWebHostEnvironment env) : Contr
 
         var fileName = $"cat_{Guid.NewGuid()}{ext}";
         var uploadPath = Path.Combine(env.WebRootPath, "uploads", fileName);
-        await using var stream = File.Create(uploadPath);
+        await using var stream = System.IO.File.Create(uploadPath);
         await file.CopyToAsync(stream);
 
         var isFirst = !await db.CatalogItemImages.AnyAsync(i => i.CatalogItemId == id);
@@ -179,7 +179,7 @@ public class CatalogController(AppDbContext db, IWebHostEnvironment env) : Contr
         if (image is null) return NotFound();
 
         var filePath = Path.Combine(env.WebRootPath, image.FilePath);
-        if (File.Exists(filePath)) File.Delete(filePath);
+        if (System.IO.File.Exists(filePath)) System.IO.File.Delete(filePath);
 
         var wasMain = image.IsMain;
         db.CatalogItemImages.Remove(image);
