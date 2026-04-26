@@ -7,38 +7,34 @@ namespace WholesaleApi.Services;
 
 public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpContextAccessor http)
 {
+    // ─── Queries ──────────────────────────────────────────────────────────────
+
     public async Task<List<ProductDto>> GetAllAsync(Guid? wholesalerId = null, Guid? categoryId = null, bool includeInactive = false)
     {
         var q = db.Products
             .Include(p => p.Images)
             .Include(p => p.Category)
             .Include(p => p.Wholesaler)
-            .Include(p => p.CatalogItem)
-                .ThenInclude(c => c!.Barcodes)
+            .Include(p => p.UnitConfigs)
+                .ThenInclude(u => u.Barcodes)
             .AsQueryable();
 
         if (!includeInactive) q = q.Where(p => p.IsActive);
         if (wholesalerId.HasValue) q = q.Where(p => p.WholesalerId == wholesalerId);
         if (categoryId.HasValue) q = q.Where(p => p.CategoryId == categoryId);
 
-        return await q.OrderBy(p => p.Name)
-            .Select(p => MapDto(p, http))
-            .ToListAsync();
+        var list = await q.OrderBy(p => p.Name).ToListAsync();
+        return list.Select(p => MapDto(p)).ToList();
     }
 
     public async Task<ProductDto> GetByIdAsync(Guid id)
     {
-        var p = await db.Products
-            .Include(p => p.Images)
-            .Include(p => p.Category)
-            .Include(p => p.Wholesaler)
-            .Include(p => p.CatalogItem)
-                .ThenInclude(c => c!.Barcodes)
-            .FirstOrDefaultAsync(p => p.Id == id)
+        var p = await LoadProduct(id)
             ?? throw new KeyNotFoundException("Ürün bulunamadı");
-
-        return MapDto(p, http);
+        return MapDto(p);
     }
+
+    // ─── CRUD ─────────────────────────────────────────────────────────────────
 
     public async Task<ProductDto> CreateAsync(Guid wholesalerId, CreateProductDto dto)
     {
@@ -48,22 +44,27 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
             CategoryId = dto.CategoryId,
             Name = dto.Name,
             Description = dto.Description,
+            Brand = dto.Brand,
+            Manufacturer = dto.Manufacturer,
             Price = dto.Price,
-            Unit = dto.Unit,
             MinOrderQty = dto.MinOrderQty,
             Stock = dto.Stock,
-            CatalogItemId = dto.CatalogItemId
         };
-
-        // Catalog item'dan unit senkronize et
-        if (dto.CatalogItemId.HasValue)
-        {
-            var catalog = await db.CatalogItems.FindAsync(dto.CatalogItemId);
-            if (catalog != null) product.Unit = catalog.Unit;
-        }
 
         db.Products.Add(product);
         await db.SaveChangesAsync();
+
+        // Unit configs
+        foreach (var uc in dto.UnitConfigs)
+            await AddUnitConfigInternalAsync(product.Id, uc);
+
+        // Eğer en az bir unit config varsa, Price'ı en küçük birimden senkronize et
+        if (dto.UnitConfigs.Count > 0)
+        {
+            var minPrice = dto.UnitConfigs.Min(u => u.Price);
+            product.Price = minPrice;
+            await db.SaveChangesAsync();
+        }
 
         return await GetByIdAsync(product.Id);
     }
@@ -75,23 +76,100 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
 
         if (dto.Name != null) product.Name = dto.Name;
         if (dto.Description != null) product.Description = dto.Description;
+        if (dto.Brand != null) product.Brand = dto.Brand;
+        if (dto.Manufacturer != null) product.Manufacturer = dto.Manufacturer;
         if (dto.Price.HasValue) product.Price = dto.Price.Value;
-        if (dto.Unit.HasValue) product.Unit = dto.Unit.Value;
         if (dto.MinOrderQty.HasValue) product.MinOrderQty = dto.MinOrderQty.Value;
         if (dto.Stock.HasValue) product.Stock = dto.Stock.Value;
         if (dto.IsActive.HasValue) product.IsActive = dto.IsActive.Value;
         if (dto.CategoryId.HasValue) product.CategoryId = dto.CategoryId.Value;
-        // Guid.Empty → bağlantıyı kaldır
-        if (dto.CatalogItemId.HasValue)
-            product.CatalogItemId = dto.CatalogItemId.Value == Guid.Empty ? null : dto.CatalogItemId.Value;
 
         await db.SaveChangesAsync();
         return await GetByIdAsync(id);
     }
 
+    // ─── Unit Config yönetimi ─────────────────────────────────────────────────
+
+    public async Task<ProductUnitConfigDto> AddUnitConfigAsync(Guid productId, Guid wholesalerId, CreateUnitConfigDto dto)
+    {
+        _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
+            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+
+        var config = await AddUnitConfigInternalAsync(productId, dto);
+        return MapUnitConfigDto(config);
+    }
+
+    public async Task<ProductUnitConfigDto> UpdateUnitConfigAsync(Guid productId, Guid configId, Guid wholesalerId, UpdateUnitConfigDto dto)
+    {
+        _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
+            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+
+        var config = await db.ProductUnitConfigs
+            .Include(u => u.Barcodes)
+            .FirstOrDefaultAsync(u => u.Id == configId && u.ProductId == productId)
+            ?? throw new KeyNotFoundException("Birim tipi bulunamadı");
+
+        if (dto.UnitType != null) config.UnitType = dto.UnitType;
+        if (dto.ContentQty.HasValue) config.ContentQty = dto.ContentQty.Value;
+        if (dto.Price.HasValue) config.Price = dto.Price.Value;
+        if (dto.SortOrder.HasValue) config.SortOrder = dto.SortOrder.Value;
+
+        await db.SaveChangesAsync();
+        return MapUnitConfigDto(config);
+    }
+
+    public async Task DeleteUnitConfigAsync(Guid productId, Guid configId, Guid wholesalerId)
+    {
+        _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
+            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+
+        var config = await db.ProductUnitConfigs.FirstOrDefaultAsync(u => u.Id == configId && u.ProductId == productId)
+            ?? throw new KeyNotFoundException("Birim tipi bulunamadı");
+
+        db.ProductUnitConfigs.Remove(config);
+        await db.SaveChangesAsync();
+    }
+
+    // ─── Barcode yönetimi ─────────────────────────────────────────────────────
+
+    public async Task<ProductBarcodeDto> AddBarcodeAsync(Guid productId, Guid configId, Guid wholesalerId, AddProductBarcodeDto dto)
+    {
+        _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
+            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+
+        _ = await db.ProductUnitConfigs.FirstOrDefaultAsync(u => u.Id == configId && u.ProductId == productId)
+            ?? throw new KeyNotFoundException("Birim tipi bulunamadı");
+
+        var barcode = new ProductBarcode
+        {
+            UnitConfigId = configId,
+            Barcode = dto.Barcode.Trim(),
+            Note = dto.Note
+        };
+        db.ProductBarcodes.Add(barcode);
+        await db.SaveChangesAsync();
+
+        return new ProductBarcodeDto { Id = barcode.Id, Barcode = barcode.Barcode, Note = barcode.Note };
+    }
+
+    public async Task DeleteBarcodeAsync(Guid productId, Guid configId, Guid barcodeId, Guid wholesalerId)
+    {
+        _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
+            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+
+        var barcode = await db.ProductBarcodes
+            .FirstOrDefaultAsync(b => b.Id == barcodeId && b.UnitConfigId == configId)
+            ?? throw new KeyNotFoundException("Barkod bulunamadı");
+
+        db.ProductBarcodes.Remove(barcode);
+        await db.SaveChangesAsync();
+    }
+
+    // ─── Image yönetimi ───────────────────────────────────────────────────────
+
     public async Task UploadImageAsync(Guid productId, Guid wholesalerId, IFormFile file)
     {
-        var product = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
+        _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
             ?? throw new KeyNotFoundException("Ürün bulunamadı");
 
         var ext = Path.GetExtension(file.FileName).ToLower();
@@ -100,18 +178,11 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
 
         var fileName = $"{Guid.NewGuid()}{ext}";
         var uploadPath = Path.Combine(env.WebRootPath, "uploads", fileName);
-
         await using var stream = File.Create(uploadPath);
         await file.CopyToAsync(stream);
 
         var isFirst = !await db.ProductImages.AnyAsync(i => i.ProductId == productId);
-        db.ProductImages.Add(new ProductImage
-        {
-            ProductId = productId,
-            FilePath = $"uploads/{fileName}",
-            IsMain = isFirst
-        });
-
+        db.ProductImages.Add(new ProductImage { ProductId = productId, FilePath = $"uploads/{fileName}", IsMain = isFirst });
         await db.SaveChangesAsync();
     }
 
@@ -124,7 +195,6 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
             ?? throw new KeyNotFoundException("Görsel bulunamadı");
 
         var wasMain = image.IsMain;
-
         var filePath = Path.Combine(env.WebRootPath, image.FilePath);
         if (File.Exists(filePath)) File.Delete(filePath);
 
@@ -148,41 +218,73 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
         await db.SaveChangesAsync();
     }
 
-    private static ProductDto MapDto(Product p, IHttpContextAccessor http)
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    private async Task<ProductUnitConfig> AddUnitConfigInternalAsync(Guid productId, CreateUnitConfigDto dto)
     {
-        var baseUrl = $"{http.HttpContext!.Request.Scheme}://{http.HttpContext.Request.Host}";
-        return new ProductDto
+        var config = new ProductUnitConfig
         {
-            Id = p.Id,
-            WholesalerId = p.WholesalerId,
-            WholesalerName = p.Wholesaler.CompanyName,
-            CategoryId = p.CategoryId,
-            CategoryName = p.Category.Name,
-            Name = p.Name,
-            Description = p.Description,
-            Price = p.Price,
-            Unit = p.Unit.ToString(),
-            MinOrderQty = p.MinOrderQty,
-            Stock = p.Stock,
-            IsActive = p.IsActive,
-            CreatedAt = p.CreatedAt,
-            CatalogItemId = p.CatalogItemId,
-            Brand = p.CatalogItem?.Brand,
-            Manufacturer = p.CatalogItem?.Manufacturer,
-            Barcodes = p.CatalogItem?.Barcodes.Select(b => new BarcodeDto
-            {
-                Id = b.Id,
-                Barcode = b.Barcode,
-                Note = b.Note
-            }).ToList() ?? [],
-            Images = p.Images
-                .OrderByDescending(i => i.IsMain)
-                .Select(i => new ProductImageDto
-                {
-                    Id = i.Id,
-                    Url = $"{baseUrl}/{i.FilePath}",
-                    IsMain = i.IsMain
-                }).ToList()
+            ProductId = productId,
+            UnitType = dto.UnitType,
+            ContentQty = dto.ContentQty,
+            Price = dto.Price,
+            SortOrder = dto.SortOrder,
         };
+        db.ProductUnitConfigs.Add(config);
+        await db.SaveChangesAsync();
+
+        foreach (var b in dto.Barcodes.Where(x => !string.IsNullOrWhiteSpace(x)))
+            db.ProductBarcodes.Add(new ProductBarcode { UnitConfigId = config.Id, Barcode = b.Trim() });
+
+        await db.SaveChangesAsync();
+
+        config.Barcodes = await db.ProductBarcodes.Where(b => b.UnitConfigId == config.Id).ToListAsync();
+        return config;
     }
+
+    private async Task<Product?> LoadProduct(Guid id) =>
+        await db.Products
+            .Include(p => p.Images)
+            .Include(p => p.Category)
+            .Include(p => p.Wholesaler)
+            .Include(p => p.UnitConfigs.OrderBy(u => u.SortOrder))
+                .ThenInclude(u => u.Barcodes)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+    private string BaseUrl => $"{http.HttpContext!.Request.Scheme}://{http.HttpContext.Request.Host}";
+
+    private ProductDto MapDto(Product p) => new()
+    {
+        Id = p.Id,
+        WholesalerId = p.WholesalerId,
+        WholesalerName = p.Wholesaler.CompanyName,
+        CategoryId = p.CategoryId,
+        CategoryName = p.Category.Name,
+        Name = p.Name,
+        Description = p.Description,
+        Brand = p.Brand,
+        Manufacturer = p.Manufacturer,
+        Price = p.Price,
+        MinOrderQty = p.MinOrderQty,
+        Stock = p.Stock,
+        IsActive = p.IsActive,
+        CreatedAt = p.CreatedAt,
+        Images = p.Images.OrderByDescending(i => i.IsMain).Select(i => new ProductImageDto
+        {
+            Id = i.Id,
+            Url = $"{BaseUrl}/{i.FilePath}",
+            IsMain = i.IsMain
+        }).ToList(),
+        UnitConfigs = p.UnitConfigs.OrderBy(u => u.SortOrder).Select(MapUnitConfigDto).ToList()
+    };
+
+    private static ProductUnitConfigDto MapUnitConfigDto(ProductUnitConfig u) => new()
+    {
+        Id = u.Id,
+        UnitType = u.UnitType,
+        ContentQty = u.ContentQty,
+        Price = u.Price,
+        SortOrder = u.SortOrder,
+        Barcodes = u.Barcodes.Select(b => new ProductBarcodeDto { Id = b.Id, Barcode = b.Barcode, Note = b.Note }).ToList()
+    };
 }

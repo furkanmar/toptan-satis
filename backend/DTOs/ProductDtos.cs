@@ -1,5 +1,3 @@
-using WholesaleApi.Entities;
-
 namespace WholesaleApi.DTOs;
 
 public class ProductDto
@@ -11,19 +9,15 @@ public class ProductDto
     public string CategoryName { get; set; } = null!;
     public string Name { get; set; } = null!;
     public string? Description { get; set; }
-    public decimal Price { get; set; }
-    public string Unit { get; set; } = null!;
+    public string? Brand { get; set; }
+    public string? Manufacturer { get; set; }
+    public decimal Price { get; set; }          // Referans fiyat
     public int MinOrderQty { get; set; }
     public int Stock { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<ProductImageDto> Images { get; set; } = [];
-
-    // Katalog bilgileri (bağlıysa)
-    public Guid? CatalogItemId { get; set; }
-    public string? Brand { get; set; }
-    public string? Manufacturer { get; set; }
-    public List<BarcodeDto> Barcodes { get; set; } = [];
+    public List<ProductUnitConfigDto> UnitConfigs { get; set; } = [];
 }
 
 public class ProductImageDto
@@ -33,83 +27,71 @@ public class ProductImageDto
     public bool IsMain { get; set; }
 }
 
-public class BarcodeDto
+public class ProductUnitConfigDto
+{
+    public Guid Id { get; set; }
+    public string UnitType { get; set; } = null!;
+    public int ContentQty { get; set; }
+    public decimal Price { get; set; }
+    public int SortOrder { get; set; }
+    public List<ProductBarcodeDto> Barcodes { get; set; } = [];
+}
+
+public class ProductBarcodeDto
 {
     public Guid Id { get; set; }
     public string Barcode { get; set; } = null!;
     public string? Note { get; set; }
 }
 
+// ─── Create / Update ──────────────────────────────────────────────────────────
+
 public class CreateProductDto
 {
     public Guid CategoryId { get; set; }
     public string Name { get; set; } = null!;
     public string? Description { get; set; }
+    public string? Brand { get; set; }
+    public string? Manufacturer { get; set; }
     public decimal Price { get; set; }
-    public ProductUnit Unit { get; set; } = ProductUnit.Adet;
     public int MinOrderQty { get; set; } = 1;
     public int Stock { get; set; } = 0;
-    public Guid? CatalogItemId { get; set; }  // Opsiyonel katalog bağlantısı
+    public List<CreateUnitConfigDto> UnitConfigs { get; set; } = [];
 }
 
 public class UpdateProductDto
 {
     public string? Name { get; set; }
     public string? Description { get; set; }
+    public string? Brand { get; set; }
+    public string? Manufacturer { get; set; }
     public decimal? Price { get; set; }
-    public ProductUnit? Unit { get; set; }
     public int? MinOrderQty { get; set; }
     public int? Stock { get; set; }
     public bool? IsActive { get; set; }
-    public Guid? CategoryId { get; set; }      // Kategori değiştirme
-    public Guid? CatalogItemId { get; set; }   // Katalog bağlantısı güncelleme
+    public Guid? CategoryId { get; set; }
 }
 
-// ─── Catalog DTOs ─────────────────────────────────────────────────────────────
+// ─── Unit Config yönetimi ─────────────────────────────────────────────────────
 
-public class CatalogItemDto
+public class CreateUnitConfigDto
 {
-    public Guid Id { get; set; }
-    public string Name { get; set; } = null!;
-    public string? Description { get; set; }
-    public string? Brand { get; set; }
-    public string? Manufacturer { get; set; }
-    public string Unit { get; set; } = null!;
-    public bool IsActive { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public List<BarcodeDto> Barcodes { get; set; } = [];
-    public List<CatalogImageDto> Images { get; set; } = [];
-    public int ProductCount { get; set; }  // Kaç toptancı bu ürünü satıyor
+    public string UnitType { get; set; } = null!;
+    public int ContentQty { get; set; } = 1;
+    public decimal Price { get; set; }
+    public int SortOrder { get; set; } = 0;
+    public List<string> Barcodes { get; set; } = [];  // İlk barkodlar (virgülsüz)
 }
 
-public class CatalogImageDto
+public class UpdateUnitConfigDto
 {
-    public Guid Id { get; set; }
-    public string Url { get; set; } = null!;
-    public bool IsMain { get; set; }
+    public string? UnitType { get; set; }
+    public int? ContentQty { get; set; }
+    public decimal? Price { get; set; }
+    public int? SortOrder { get; set; }
 }
 
-public class CreateCatalogItemDto
-{
-    public string Name { get; set; } = null!;
-    public string? Description { get; set; }
-    public string? Brand { get; set; }
-    public string? Manufacturer { get; set; }
-    public ProductUnit Unit { get; set; } = ProductUnit.Adet;
-    public List<string> Barcodes { get; set; } = [];  // İlk barkodlar
-}
-
-public class UpdateCatalogItemDto
-{
-    public string? Name { get; set; }
-    public string? Description { get; set; }
-    public string? Brand { get; set; }
-    public string? Manufacturer { get; set; }
-    public ProductUnit? Unit { get; set; }
-    public bool? IsActive { get; set; }
-}
-
-public class AddBarcodeDto
+public class AddProductBarcodeDto
 {
     public string Barcode { get; set; } = null!;
     public string? Note { get; set; }

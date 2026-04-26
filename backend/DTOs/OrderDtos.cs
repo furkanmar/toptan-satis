@@ -25,6 +25,8 @@ public class OrderItemDto
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal Total { get; set; }
+    public string UnitType { get; set; } = "Adet";
+    public int ContentQty { get; set; } = 1;
 }
 
 public class CreateOrderDto
@@ -36,6 +38,7 @@ public class CreateOrderDto
 public class CreateOrderItemDto
 {
     public Guid ProductId { get; set; }
+    public Guid? UnitConfigId { get; set; }  // null → ilk/varsayılan birim tipi
     public int Quantity { get; set; }
 }
 
@@ -44,7 +47,7 @@ public class ConfirmOrderDto
     public string? WholesalerNote { get; set; }
     public DateTime? DueDate { get; set; }
     public bool CreateCreditEntry { get; set; } = true;
-    public bool ForceConfirm { get; set; } = false; // Stok yetersizse de onayla (eksi stok)
+    public bool ForceConfirm { get; set; } = false;
 }
 
 public class UpdateOrderItemsDto

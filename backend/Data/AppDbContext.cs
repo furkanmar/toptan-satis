@@ -11,9 +11,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
-    public DbSet<CatalogItem> CatalogItems => Set<CatalogItem>();
-    public DbSet<CatalogItemBarcode> CatalogItemBarcodes => Set<CatalogItemBarcode>();
-    public DbSet<CatalogItemImage> CatalogItemImages => Set<CatalogItemImage>();
+    public DbSet<ProductUnitConfig> ProductUnitConfigs => Set<ProductUnitConfig>();
+    public DbSet<ProductBarcode> ProductBarcodes => Set<ProductBarcode>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<StoreWholesaler> StoreWholesalers => Set<StoreWholesaler>();
@@ -39,29 +38,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         // Product
         mb.Entity<Product>().Property(p => p.Price).HasPrecision(18, 2);
-        mb.Entity<Product>().Property(p => p.Unit).HasConversion<string>();
-        mb.Entity<Product>()
-            .HasOne(p => p.CatalogItem)
-            .WithMany(c => c.Products)
-            .HasForeignKey(p => p.CatalogItemId)
-            .IsRequired(false);
 
-        // CatalogItem
-        mb.Entity<CatalogItem>().Property(c => c.Unit).HasConversion<string>();
-        mb.Entity<CatalogItemBarcode>()
-            .HasOne(b => b.CatalogItem)
-            .WithMany(c => c.Barcodes)
-            .HasForeignKey(b => b.CatalogItemId);
-        mb.Entity<CatalogItemImage>()
-            .HasOne(i => i.CatalogItem)
-            .WithMany(c => c.Images)
-            .HasForeignKey(i => i.CatalogItemId);
+        // ProductUnitConfig → Product
+        mb.Entity<ProductUnitConfig>().Property(u => u.Price).HasPrecision(18, 2);
+        mb.Entity<ProductUnitConfig>()
+            .HasOne(u => u.Product)
+            .WithMany(p => p.UnitConfigs)
+            .HasForeignKey(u => u.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // ProductBarcode → ProductUnitConfig
+        mb.Entity<ProductBarcode>()
+            .HasOne(b => b.UnitConfig)
+            .WithMany(u => u.Barcodes)
+            .HasForeignKey(b => b.UnitConfigId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Order
         mb.Entity<Order>().Property(o => o.TotalAmount).HasPrecision(18, 2);
         mb.Entity<Order>().Property(o => o.Status).HasConversion<string>();
 
-        // OrderItem — fiyat snapshot
+        // OrderItem
         mb.Entity<OrderItem>().Property(oi => oi.UnitPrice).HasPrecision(18, 2);
 
         // Category — per-wholesaler, FK optional

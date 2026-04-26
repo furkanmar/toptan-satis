@@ -6,7 +6,11 @@ public class OrderItem
     public Guid OrderId { get; set; }
     public Guid ProductId { get; set; }
     public int Quantity { get; set; }
-    public decimal UnitPrice { get; set; }  // snapshot — fiyat değişse bile korunur
+    public decimal UnitPrice { get; set; }   // snapshot — sipariş anındaki birim fiyatı
+
+    // Birim tipi snapshot (UnitConfig silinse bile kayıt korunur)
+    public string UnitType { get; set; } = "Adet";
+    public int ContentQty { get; set; } = 1; // kaç temel birim
 
     // Navigation
     public Order Order { get; set; } = null!;

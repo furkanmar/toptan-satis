@@ -7,14 +7,12 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' }
 })
 
-// JWT token her isteğe otomatik eklenir
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
-// 401 → login sayfasına yönlendir
 api.interceptors.response.use(
   res => res,
   err => {
@@ -42,6 +40,8 @@ export const productsApi = {
     api.post('/products', data).then(r => r.data),
   update: (id: string, data: unknown) =>
     api.put(`/products/${id}`, data).then(r => r.data),
+
+  // Görseller
   uploadImage: (id: string, file: File) => {
     const form = new FormData()
     form.append('file', file)
@@ -53,33 +53,20 @@ export const productsApi = {
     api.delete(`/products/${productId}/images/${imageId}`).then(r => r.data),
   setMainImage: (productId: string, imageId: string) =>
     api.patch(`/products/${productId}/images/${imageId}/set-main`).then(r => r.data),
-}
 
-// ─── Catalog ─────────────────────────────────────────────────────────────────
-export const catalogApi = {
-  search: (params?: { q?: string; barcode?: string; page?: number; pageSize?: number }) =>
-    api.get('/catalog', { params }).then(r => r.data),
-  getById: (id: string) =>
-    api.get(`/catalog/${id}`).then(r => r.data),
-  create: (data: unknown) =>
-    api.post('/catalog', data).then(r => r.data),
-  update: (id: string, data: unknown) =>
-    api.put(`/catalog/${id}`, data).then(r => r.data),
-  addBarcode: (id: string, barcode: string, note?: string) =>
-    api.post(`/catalog/${id}/barcodes`, { barcode, note }).then(r => r.data),
-  deleteBarcode: (id: string, barcodeId: string) =>
-    api.delete(`/catalog/${id}/barcodes/${barcodeId}`).then(r => r.data),
-  uploadImage: (id: string, file: File) => {
-    const form = new FormData()
-    form.append('file', file)
-    return api.post(`/catalog/${id}/images`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    }).then(r => r.data)
-  },
-  deleteImage: (id: string, imageId: string) =>
-    api.delete(`/catalog/${id}/images/${imageId}`).then(r => r.data),
-  setMainImage: (id: string, imageId: string) =>
-    api.patch(`/catalog/${id}/images/${imageId}/set-main`).then(r => r.data),
+  // Unit Config
+  addUnitConfig: (productId: string, data: unknown) =>
+    api.post(`/products/${productId}/unit-configs`, data).then(r => r.data),
+  updateUnitConfig: (productId: string, configId: string, data: unknown) =>
+    api.put(`/products/${productId}/unit-configs/${configId}`, data).then(r => r.data),
+  deleteUnitConfig: (productId: string, configId: string) =>
+    api.delete(`/products/${productId}/unit-configs/${configId}`).then(r => r.data),
+
+  // Barkod
+  addBarcode: (productId: string, configId: string, barcode: string, note?: string) =>
+    api.post(`/products/${productId}/unit-configs/${configId}/barcodes`, { barcode, note }).then(r => r.data),
+  deleteBarcode: (productId: string, configId: string, barcodeId: string) =>
+    api.delete(`/products/${productId}/unit-configs/${configId}/barcodes/${barcodeId}`).then(r => r.data),
 }
 
 // ─── Orders ──────────────────────────────────────────────────────────────────
@@ -92,7 +79,7 @@ export const ordersApi = {
     api.get('/orders/incoming').then(r => r.data),
   confirm: (id: string, data: { wholesalerNote?: string; dueDate?: string; createCreditEntry?: boolean; forceConfirm?: boolean }) =>
     api.post(`/orders/${id}/confirm`, data).then(r => r.data),
-  updateItems: (id: string, data: { items: { productId: string; quantity: number }[]; wholesalerNote?: string }) =>
+  updateItems: (id: string, data: { items: { productId: string; unitConfigId?: string; quantity: number }[]; wholesalerNote?: string }) =>
     api.put(`/orders/${id}/items`, data).then(r => r.data),
   updateStatus: (id: string, status: string) =>
     api.patch(`/orders/${id}/status`, { status }).then(r => r.data),
@@ -140,4 +127,18 @@ export const categoriesApi = {
     api.post('/categories', { name }).then(r => r.data),
   delete: (id: string) =>
     api.delete(`/categories/${id}`).then(r => r.data),
+}
+
+// ─── Admin ───────────────────────────────────────────────────────────────────
+export const adminApi = {
+  getUsers: () =>
+    api.get('/admin/users').then(r => r.data),
+  toggleUserActive: (id: string, isActive: boolean) =>
+    api.patch(`/admin/users/${id}`, { isActive }).then(r => r.data),
+  getStoreWholesalers: () =>
+    api.get('/admin/store-wholesalers').then(r => r.data),
+  createStoreWholesaler: (storeId: string, wholesalerId: string) =>
+    api.post('/admin/store-wholesalers', { storeId, wholesalerId }).then(r => r.data),
+  deleteStoreWholesaler: (storeId: string, wholesalerId: string) =>
+    api.delete(`/admin/store-wholesalers/${storeId}/${wholesalerId}`).then(r => r.data),
 }

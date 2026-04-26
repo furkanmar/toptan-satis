@@ -9,40 +9,52 @@ public class OrderService(AppDbContext db)
 {
     public async Task<OrderDto> CreateAsync(Guid storeId, CreateOrderDto dto)
     {
-        // Tüm ürünler aynı toptancıdan gelmeli
         var productIds = dto.Items.Select(i => i.ProductId).ToList();
         var products = await db.Products
+            .Include(p => p.UnitConfigs)
             .Where(p => productIds.Contains(p.Id) && p.IsActive)
             .ToListAsync();
 
         if (products.Count != dto.Items.Count)
             throw new InvalidOperationException("Bazı ürünler bulunamadı veya aktif değil");
 
-        var wholesalerId = products.Select(p => p.WholesalerId).Distinct().ToList();
-        if (wholesalerId.Count > 1)
+        var distinctWholesalers = products.Select(p => p.WholesalerId).Distinct().ToList();
+        if (distinctWholesalers.Count > 1)
             throw new InvalidOperationException("Sipariş tek toptancıdan olmalı");
+
+        var items = new List<OrderItem>();
+        foreach (var i in dto.Items)
+        {
+            var p = products.First(p => p.Id == i.ProductId);
+            ProductUnitConfig? unitConfig = null;
+
+            if (i.UnitConfigId.HasValue)
+                unitConfig = p.UnitConfigs.FirstOrDefault(u => u.Id == i.UnitConfigId.Value);
+
+            // Fallback: ilk unit config ya da base price
+            unitConfig ??= p.UnitConfigs.OrderBy(u => u.SortOrder).FirstOrDefault();
+
+            items.Add(new OrderItem
+            {
+                ProductId = i.ProductId,
+                Quantity = i.Quantity,
+                UnitPrice = unitConfig?.Price ?? p.Price,
+                UnitType = unitConfig?.UnitType ?? "Adet",
+                ContentQty = unitConfig?.ContentQty ?? 1,
+            });
+        }
 
         var order = new Order
         {
             StoreId = storeId,
-            WholesalerId = wholesalerId[0],
+            WholesalerId = distinctWholesalers[0],
             Note = dto.Note,
-            Items = dto.Items.Select(i =>
-            {
-                var p = products.First(p => p.Id == i.ProductId);
-                return new OrderItem
-                {
-                    ProductId = i.ProductId,
-                    Quantity = i.Quantity,
-                    UnitPrice = p.Price
-                };
-            }).ToList()
+            Items = items,
+            TotalAmount = items.Sum(i => i.Quantity * i.UnitPrice)
         };
 
-        order.TotalAmount = order.Items.Sum(i => i.Quantity * i.UnitPrice);
         db.Orders.Add(order);
         await db.SaveChangesAsync();
-
         return await GetByIdAsync(order.Id);
     }
 
@@ -56,15 +68,15 @@ public class OrderService(AppDbContext db)
         if (order.Status != OrderStatus.Pending)
             throw new InvalidOperationException("Sadece bekleyen siparişler onaylanabilir");
 
-        // Stok düş
         var productIds = order.Items.Select(i => i.ProductId).ToList();
         var products = await db.Products.Where(p => productIds.Contains(p.Id)).ToListAsync();
         foreach (var item in order.Items)
         {
             var product = products.First(p => p.Id == item.ProductId);
-            if (product.Stock < item.Quantity && !dto.ForceConfirm)
+            var totalUnits = item.Quantity * item.ContentQty;
+            if (product.Stock < totalUnits && !dto.ForceConfirm)
                 throw new InvalidOperationException($"'{product.Name}' için yeterli stok yok (mevcut: {product.Stock})");
-            product.Stock -= item.Quantity; // ForceConfirm ile negatife düşebilir
+            product.Stock -= totalUnits;
         }
 
         order.Status = OrderStatus.Confirmed;
@@ -72,14 +84,13 @@ public class OrderService(AppDbContext db)
         order.WholesalerNote = dto.WholesalerNote;
         order.UpdatedAt = DateTime.UtcNow;
 
-        // Veresiye kaydı oluştur
         if (dto.CreateCreditEntry)
         {
-            db.CreditTransactions.Add(new Entities.CreditTransaction
+            db.CreditTransactions.Add(new CreditTransaction
             {
                 StoreId = order.StoreId,
                 WholesalerId = wholesalerId,
-                Type = Entities.CreditTransactionType.OrderDebit,
+                Type = CreditTransactionType.OrderDebit,
                 Amount = order.TotalAmount,
                 Description = $"Sipariş #{order.Id.ToString()[..8].ToUpper()}",
                 DueDate = dto.DueDate,
@@ -102,24 +113,34 @@ public class OrderService(AppDbContext db)
             throw new InvalidOperationException("Sadece bekleyen siparişlerin içeriği değiştirilebilir");
 
         var productIds = dto.Items.Select(i => i.ProductId).ToList();
-        var products = await db.Products.Where(p => productIds.Contains(p.Id) && p.IsActive).ToListAsync();
+        var products = await db.Products
+            .Include(p => p.UnitConfigs)
+            .Where(p => productIds.Contains(p.Id) && p.IsActive)
+            .ToListAsync();
 
         if (products.Count != dto.Items.Count)
             throw new InvalidOperationException("Bazı ürünler bulunamadı");
 
         db.OrderItems.RemoveRange(order.Items);
 
-        var newItems = dto.Items.Select(i =>
+        var newItems = new List<OrderItem>();
+        foreach (var i in dto.Items)
         {
             var p = products.First(p => p.Id == i.ProductId);
-            return new Entities.OrderItem
+            var unitConfig = i.UnitConfigId.HasValue
+                ? p.UnitConfigs.FirstOrDefault(u => u.Id == i.UnitConfigId.Value)
+                : p.UnitConfigs.OrderBy(u => u.SortOrder).FirstOrDefault();
+
+            newItems.Add(new OrderItem
             {
                 OrderId = orderId,
                 ProductId = i.ProductId,
                 Quantity = i.Quantity,
-                UnitPrice = p.Price
-            };
-        }).ToList();
+                UnitPrice = unitConfig?.Price ?? p.Price,
+                UnitType = unitConfig?.UnitType ?? "Adet",
+                ContentQty = unitConfig?.ContentQty ?? 1,
+            });
+        }
 
         order.Items = newItems;
         order.TotalAmount = newItems.Sum(i => i.Quantity * i.UnitPrice);
@@ -137,25 +158,23 @@ public class OrderService(AppDbContext db)
             .FirstOrDefaultAsync(o => o.Id == orderId && o.WholesalerId == wholesalerId)
             ?? throw new KeyNotFoundException("Sipariş bulunamadı");
 
-        // Sipariş onaylanınca stok düş
         if (newStatus == OrderStatus.Confirmed && order.Status == OrderStatus.Pending)
         {
             var productIds = order.Items.Select(i => i.ProductId).ToList();
             var products = await db.Products.Where(p => productIds.Contains(p.Id)).ToListAsync();
-
             foreach (var item in order.Items)
             {
                 var product = products.First(p => p.Id == item.ProductId);
-                if (product.Stock < item.Quantity)
+                var totalUnits = item.Quantity * item.ContentQty;
+                if (product.Stock < totalUnits)
                     throw new InvalidOperationException($"'{product.Name}' için yeterli stok yok (mevcut: {product.Stock})");
-                product.Stock -= item.Quantity;
+                product.Stock -= totalUnits;
             }
         }
 
         order.Status = newStatus;
         order.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
-
         return await GetByIdAsync(orderId);
     }
 
@@ -203,7 +222,9 @@ public class OrderService(AppDbContext db)
             ProductName = i.Product.Name,
             Quantity = i.Quantity,
             UnitPrice = i.UnitPrice,
-            Total = i.Quantity * i.UnitPrice
+            Total = i.Quantity * i.UnitPrice,
+            UnitType = i.UnitType,
+            ContentQty = i.ContentQty,
         }).ToList()
     };
 }

@@ -8,10 +8,19 @@ export interface AuthResponse {
   displayName: string
 }
 
-export interface Barcode {
+export interface ProductBarcode {
   id: string
   barcode: string
   note?: string
+}
+
+export interface ProductUnitConfig {
+  id: string
+  unitType: string         // "Adet", "Paket", "Koli", "Kg", "Litre"
+  contentQty: number       // kaç temel birim içeriyor
+  price: number
+  sortOrder: number
+  barcodes: ProductBarcode[]
 }
 
 export interface Product {
@@ -22,38 +31,15 @@ export interface Product {
   categoryName: string
   name: string
   description?: string
-  price: number
-  unit: string
+  brand?: string
+  manufacturer?: string
+  price: number            // referans fiyat (en küçük birim)
   minOrderQty: number
   stock: number
   isActive: boolean
   createdAt: string
   images: ProductImage[]
-  // Katalog bilgileri
-  catalogItemId?: string
-  brand?: string
-  manufacturer?: string
-  barcodes: Barcode[]
-}
-
-export interface CatalogItem {
-  id: string
-  name: string
-  description?: string
-  brand?: string
-  manufacturer?: string
-  unit: string
-  isActive: boolean
-  createdAt: string
-  barcodes: Barcode[]
-  images: CatalogImage[]
-  productCount: number
-}
-
-export interface CatalogImage {
-  id: string
-  url: string
-  isMain: boolean
+  unitConfigs: ProductUnitConfig[]
 }
 
 export interface ProductImage {
@@ -82,6 +68,17 @@ export interface Order {
   createdAt: string
   updatedAt?: string
   items: OrderItem[]
+}
+
+export interface OrderItem {
+  id: string
+  productId: string
+  productName: string
+  quantity: number
+  unitPrice: number
+  total: number
+  unitType: string
+  contentQty: number
 }
 
 export interface CreditTransaction {
@@ -115,18 +112,20 @@ export interface AssignedWholesaler {
 
 export type OrderStatus = 'Pending' | 'Confirmed' | 'Rejected' | 'Delivered' | 'Cancelled'
 
-export interface OrderItem {
-  productId: string
-  productName: string
-  quantity: number
-  unitPrice: number
-  total: number
-}
-
 export interface Wholesaler {
   id: string
   companyName: string
   phone?: string
   address?: string
   description?: string
+}
+
+export interface StoreWholesalerRelation {
+  storeId: string
+  storeName: string
+  storePhone?: string
+  wholesalerId: string
+  wholesalerName: string
+  isActive: boolean
+  assignedAt: string
 }

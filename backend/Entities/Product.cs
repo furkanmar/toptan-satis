@@ -1,7 +1,5 @@
 namespace WholesaleApi.Entities;
 
-public enum ProductUnit { Adet, Kg, Koli, Litre, Paket }
-
 public class Product
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -9,20 +7,18 @@ public class Product
     public Guid CategoryId { get; set; }
     public string Name { get; set; } = null!;
     public string? Description { get; set; }
-    public decimal Price { get; set; }
-    public ProductUnit Unit { get; set; } = ProductUnit.Adet;
+    public string? Brand { get; set; }
+    public string? Manufacturer { get; set; }
+    public decimal Price { get; set; }          // Referans fiyat (en küçük birim)
     public int MinOrderQty { get; set; } = 1;
     public int Stock { get; set; } = 0;
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // Katalog bağlantısı (opsiyonel)
-    public Guid? CatalogItemId { get; set; }
-
     // Navigation
-    public CatalogItem? CatalogItem { get; set; }
     public Wholesaler Wholesaler { get; set; } = null!;
     public Category Category { get; set; } = null!;
     public ICollection<ProductImage> Images { get; set; } = [];
+    public ICollection<ProductUnitConfig> UnitConfigs { get; set; } = [];
     public ICollection<OrderItem> OrderItems { get; set; } = [];
 }
