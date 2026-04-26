@@ -47,6 +47,7 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
             Brand = dto.Brand,
             Manufacturer = dto.Manufacturer,
             Price = dto.Price,
+            VatRate = dto.VatRate,
             MinOrderQty = dto.MinOrderQty,
             Stock = dto.Stock,
         };
@@ -82,6 +83,7 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
         if (dto.MinOrderQty.HasValue) product.MinOrderQty = dto.MinOrderQty.Value;
         if (dto.Stock.HasValue) product.Stock = dto.Stock.Value;
         if (dto.IsActive.HasValue) product.IsActive = dto.IsActive.Value;
+        if (dto.VatRate.HasValue) product.VatRate = dto.VatRate.Value;
         if (dto.CategoryId.HasValue) product.CategoryId = dto.CategoryId.Value;
 
         await db.SaveChangesAsync();
@@ -265,6 +267,7 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
         Brand = p.Brand,
         Manufacturer = p.Manufacturer,
         Price = p.Price,
+        VatRate = p.VatRate,
         MinOrderQty = p.MinOrderQty,
         Stock = p.Stock,
         IsActive = p.IsActive,

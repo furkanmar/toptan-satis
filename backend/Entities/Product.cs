@@ -13,6 +13,7 @@ public class Product
     public int MinOrderQty { get; set; } = 1;
     public int Stock { get; set; } = 0;
     public bool IsActive { get; set; } = true;
+    public int VatRate { get; set; } = 18;          // KDV oranı: 0, 1, 10, 18, 20
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation

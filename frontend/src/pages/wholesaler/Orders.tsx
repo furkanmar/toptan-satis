@@ -63,6 +63,7 @@ export default function WholesalerOrders() {
     onError: (err: unknown, variables) => {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? ''
       if (msg.includes('yeterli stok yok')) {
+        setConfirmModal(null)   // confirm modal'ı kapat, stock warning üstte açılsın
         setStockWarning({ order: variables.order, msg })
       }
     }
@@ -237,8 +238,17 @@ export default function WholesalerOrders() {
                         <div className="space-y-1 mb-3">
                           {order.items.map((item, i) => (
                             <div key={i} className="flex justify-between text-sm text-gray-600">
-                              <span>{item.productName} × {item.quantity}</span>
-                              <span>₺{item.total.toFixed(2)}</span>
+                              <span>
+                                {item.productName}
+                                <span className="text-xs text-gray-400 ml-1">({item.unitType})</span>
+                                {' '}× {item.quantity}
+                              </span>
+                              <div className="text-right">
+                                <span className="font-medium text-gray-800">₺{item.total.toFixed(2)}</span>
+                                {item.vatRate > 0 && (
+                                  <span className="block text-xs text-purple-500">KDV %{item.vatRate} dahil</span>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -329,6 +339,26 @@ export default function WholesalerOrders() {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Vade Tarihi</label>
+                {/* Hızlı vade seçenekleri */}
+                <div className="flex gap-1.5 flex-wrap mb-2">
+                  {[7, 14, 21, 30, 45, 60].map(days => {
+                    const d = new Date(); d.setDate(d.getDate() + days)
+                    const val = d.toISOString().split('T')[0]
+                    return (
+                      <button
+                        key={days}
+                        onClick={() => setConfirmForm(f => ({ ...f, dueDate: val }))}
+                        className={`px-2 py-1 rounded text-xs border transition-colors ${
+                          confirmForm.dueDate === val
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600'
+                        }`}
+                      >
+                        {days} gün
+                      </button>
+                    )
+                  })}
+                </div>
                 <input
                   type="date"
                   value={confirmForm.dueDate}

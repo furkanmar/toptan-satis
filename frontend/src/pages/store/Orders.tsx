@@ -59,8 +59,17 @@ export default function StoreOrders() {
                 <div className="space-y-1">
                   {order.items.map((item, i) => (
                     <div key={i} className="flex justify-between text-sm text-gray-600">
-                      <span>{item.productName} × {item.quantity}</span>
-                      <span>₺{item.total.toFixed(2)}</span>
+                      <span>
+                        {item.productName}
+                        <span className="text-xs text-gray-400 ml-1">({item.unitType})</span>
+                        {' '}× {item.quantity}
+                      </span>
+                      <div className="text-right">
+                        <span className="font-medium text-gray-800">₺{item.total.toFixed(2)}</span>
+                        {item.vatRate > 0 && (
+                          <span className="block text-xs text-purple-500">KDV %{item.vatRate} dahil</span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

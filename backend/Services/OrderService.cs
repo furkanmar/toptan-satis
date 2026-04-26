@@ -41,6 +41,7 @@ public class OrderService(AppDbContext db)
                 UnitPrice = unitConfig?.Price ?? p.Price,
                 UnitType = unitConfig?.UnitType ?? "Adet",
                 ContentQty = unitConfig?.ContentQty ?? 1,
+                VatRate = p.VatRate,
             });
         }
 
@@ -139,6 +140,7 @@ public class OrderService(AppDbContext db)
                 UnitPrice = unitConfig?.Price ?? p.Price,
                 UnitType = unitConfig?.UnitType ?? "Adet",
                 ContentQty = unitConfig?.ContentQty ?? 1,
+                VatRate = p.VatRate,
             });
         }
 
@@ -225,6 +227,7 @@ public class OrderService(AppDbContext db)
             Total = i.Quantity * i.UnitPrice,
             UnitType = i.UnitType,
             ContentQty = i.ContentQty,
+            VatRate = i.VatRate,
         }).ToList()
     };
 }

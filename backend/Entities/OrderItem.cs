@@ -11,6 +11,7 @@ public class OrderItem
     // Birim tipi snapshot (UnitConfig silinse bile kayıt korunur)
     public string UnitType { get; set; } = "Adet";
     public int ContentQty { get; set; } = 1; // kaç temel birim
+    public int VatRate { get; set; } = 18;    // KDV snapshot
 
     // Navigation
     public Order Order { get; set; } = null!;

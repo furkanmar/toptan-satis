@@ -34,6 +34,7 @@ export interface Product {
   brand?: string
   manufacturer?: string
   price: number            // referans fiyat (en küçük birim)
+  vatRate: number          // KDV oranı: 0, 1, 10, 18, 20
   minOrderQty: number
   stock: number
   isActive: boolean
@@ -79,6 +80,7 @@ export interface OrderItem {
   total: number
   unitType: string
   contentQty: number
+  vatRate: number
 }
 
 export interface CreditTransaction {

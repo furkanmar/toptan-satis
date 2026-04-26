@@ -15,6 +15,7 @@ public class ProductDto
     public int MinOrderQty { get; set; }
     public int Stock { get; set; }
     public bool IsActive { get; set; }
+    public int VatRate { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<ProductImageDto> Images { get; set; } = [];
     public List<ProductUnitConfigDto> UnitConfigs { get; set; } = [];
@@ -54,6 +55,7 @@ public class CreateProductDto
     public string? Brand { get; set; }
     public string? Manufacturer { get; set; }
     public decimal Price { get; set; }
+    public int VatRate { get; set; } = 18;
     public int MinOrderQty { get; set; } = 1;
     public int Stock { get; set; } = 0;
     public List<CreateUnitConfigDto> UnitConfigs { get; set; } = [];
@@ -69,6 +71,7 @@ public class UpdateProductDto
     public int? MinOrderQty { get; set; }
     public int? Stock { get; set; }
     public bool? IsActive { get; set; }
+    public int? VatRate { get; set; }
     public Guid? CategoryId { get; set; }
 }
 

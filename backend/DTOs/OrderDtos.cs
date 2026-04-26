@@ -27,6 +27,7 @@ public class OrderItemDto
     public decimal Total { get; set; }
     public string UnitType { get; set; } = "Adet";
     public int ContentQty { get; set; } = 1;
+    public int VatRate { get; set; } = 18;
 }
 
 public class CreateOrderDto

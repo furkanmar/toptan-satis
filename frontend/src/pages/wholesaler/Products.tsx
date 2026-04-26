@@ -17,10 +17,13 @@ const UNIT_TYPES = ['Adet', 'Kg', 'Koli', 'Litre', 'Paket']
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+const VAT_RATES = [0, 1, 10, 18, 20]
+
 interface ProductForm {
   name: string
   description: string
   price: string
+  vatRate: string
   minOrderQty: string
   stock: string
   categoryId: string
@@ -29,7 +32,7 @@ interface ProductForm {
 }
 
 const emptyForm = (): ProductForm => ({
-  name: '', description: '', price: '', minOrderQty: '1',
+  name: '', description: '', price: '', vatRate: '18', minOrderQty: '1',
   stock: '0', categoryId: '', brand: '', manufacturer: '',
 })
 
@@ -263,6 +266,7 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
         name: localProduct.name,
         description: localProduct.description ?? '',
         price: localProduct.price.toString(),
+        vatRate: localProduct.vatRate.toString(),
         minOrderQty: localProduct.minOrderQty.toString(),
         stock: localProduct.stock.toString(),
         categoryId: localProduct.categoryId,
@@ -277,7 +281,7 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
 
   // New unit config form
   const [showNewConfig, setShowNewConfig] = useState(false)
-  const [newConfig, setNewConfig] = useState({ unitType: 'Adet', contentQty: '1', price: '', sortOrder: '0' })
+  const [newConfig, setNewConfig] = useState({ unitType: 'Adet', contentQty: '1', price: '', sortOrder: '0', barcode: '' })
 
   const set = (k: keyof ProductForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm(f => ({ ...f, [k]: e.target.value }))
@@ -308,6 +312,7 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
         name: f.name,
         description: f.description || undefined,
         price: parseFloat(f.price),
+        vatRate: parseInt(f.vatRate) || 18,
         minOrderQty: parseInt(f.minOrderQty),
         stock: parseInt(f.stock),
         categoryId: f.categoryId,
@@ -339,11 +344,11 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
       contentQty: parseInt(newConfig.contentQty) || 1,
       price: parseFloat(newConfig.price) || 0,
       sortOrder: parseInt(newConfig.sortOrder) || 0,
-      barcodes: [],
+      barcodes: newConfig.barcode.trim() ? [newConfig.barcode.trim()] : [],
     }),
     onSuccess: () => {
       setShowNewConfig(false)
-      setNewConfig({ unitType: 'Adet', contentQty: '1', price: '', sortOrder: '0' })
+      setNewConfig({ unitType: 'Adet', contentQty: '1', price: '', sortOrder: '0', barcode: '' })
       qc.invalidateQueries({ queryKey: ['my-products'] })
       refreshProduct()
     }
@@ -437,12 +442,21 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
               {/* Fiyat & Stok */}
               <section>
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Fiyat & Stok</h3>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Ref. Fiyat (₺) *</label>
                     <input type="number" min="0" step="0.01" value={form.price} onChange={set('price')}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">KDV Oranı</label>
+                    <select value={form.vatRate} onChange={set('vatRate')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {VAT_RATES.map(r => <option key={r} value={r}>%{r}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Stok</label>
                     <input type="number" min="0" value={form.stock} onChange={set('stock')}
@@ -534,9 +548,22 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
                             className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
                         </div>
                       </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-0.5 block">Barkod <span className="text-red-500">*</span></label>
+                        <input
+                          value={newConfig.barcode}
+                          onChange={e => setNewConfig(f => ({ ...f, barcode: e.target.value }))}
+                          onKeyDown={e => e.key === 'Enter' && newConfig.price && newConfig.barcode.trim() && addConfigMutation.mutate()}
+                          placeholder="Zorunlu — tarayıcı ile okutun veya elle girin"
+                          className={`w-full px-2 py-1.5 border rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 ${!newConfig.barcode.trim() ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
+                        />
+                        {!newConfig.barcode.trim() && (
+                          <p className="text-xs text-red-500 mt-0.5">Barkod zorunludur — barkod olmadan sipariş verilirken ürün bulunamaz.</p>
+                        )}
+                      </div>
                       <div className="flex gap-2">
                         <button onClick={() => addConfigMutation.mutate()}
-                          disabled={!newConfig.price || addConfigMutation.isPending}
+                          disabled={!newConfig.price || !newConfig.barcode.trim() || addConfigMutation.isPending}
                           className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50">
                           {addConfigMutation.isPending ? 'Ekleniyor…' : 'Ekle'}
                         </button>
@@ -601,6 +628,7 @@ export default function WholesalerProducts() {
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'passive'>('all')
   const [modal, setModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
   const [editingStock, setEditingStock] = useState<{ id: string; value: string } | null>(null)
+  const [editingPrice, setEditingPrice] = useState<{ productId: string; configId: string; value: string } | null>(null)
 
   const { data: allProducts = [], isLoading } = useQuery<Product[]>({
     queryKey: ['my-products', profileId],
@@ -622,6 +650,12 @@ export default function WholesalerProducts() {
   const updateStock = useMutation({
     mutationFn: ({ id, stock }: { id: string; stock: number }) => productsApi.update(id, { stock }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-products'] }); setEditingStock(null) }
+  })
+
+  const updateConfigPrice = useMutation({
+    mutationFn: ({ productId, configId, price }: { productId: string; configId: string; price: number }) =>
+      productsApi.updateUnitConfig(productId, configId, { price }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-products'] }); setEditingPrice(null) }
   })
 
   const countByCategory = (catId: string) => allProducts.filter(p => p.categoryId === catId).length
@@ -747,11 +781,14 @@ export default function WholesalerProducts() {
                           </div>
                           <div className="min-w-0">
                             <span className="font-medium text-gray-900 block truncate">{p.name}</span>
-                            {(p.brand || p.manufacturer) && (
-                              <span className="text-xs text-gray-400">
-                                {[p.brand, p.manufacturer].filter(Boolean).join(' · ')}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {(p.brand || p.manufacturer) && (
+                                <span className="text-xs text-gray-400">
+                                  {[p.brand, p.manufacturer].filter(Boolean).join(' · ')}
+                                </span>
+                              )}
+                              <span className="text-xs text-purple-600 bg-purple-50 border border-purple-100 rounded px-1.5 py-0.5">KDV %{p.vatRate}</span>
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -759,18 +796,45 @@ export default function WholesalerProducts() {
                       {/* Kategori */}
                       <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{p.categoryName}</td>
 
-                      {/* Birim konfigürasyonları */}
+                      {/* Birim konfigürasyonları — inline fiyat düzenleme */}
                       <td className="px-4 py-3 hidden lg:table-cell">
                         <div className="flex flex-wrap gap-1">
                           {p.unitConfigs
                             .slice()
                             .sort((a, b) => a.sortOrder - b.sortOrder)
-                            .map(uc => (
-                              <span key={uc.id}
-                                className="text-xs bg-blue-50 text-blue-700 border border-blue-100 rounded px-1.5 py-0.5">
-                                {uc.unitType} ₺{uc.price.toFixed(2)}
-                              </span>
-                            ))}
+                            .map(uc => {
+                              const isEditingThis = editingPrice?.productId === p.id && editingPrice?.configId === uc.id
+                              if (isEditingThis) {
+                                return (
+                                  <div key={uc.id} className="flex items-center gap-0.5">
+                                    <span className="text-xs text-gray-500">{uc.unitType} ₺</span>
+                                    <input
+                                      type="number" min="0" step="0.01"
+                                      value={editingPrice.value}
+                                      onChange={e => setEditingPrice(s => s && ({ ...s, value: e.target.value }))}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter') updateConfigPrice.mutate({ productId: p.id, configId: uc.id, price: parseFloat(editingPrice.value) || 0 })
+                                        if (e.key === 'Escape') setEditingPrice(null)
+                                      }}
+                                      autoFocus
+                                      className="w-16 px-1 py-0.5 border border-blue-400 rounded text-xs text-right focus:outline-none"
+                                    />
+                                    <button onClick={() => updateConfigPrice.mutate({ productId: p.id, configId: uc.id, price: parseFloat(editingPrice.value) || 0 })}
+                                      className="text-green-600 text-xs hover:text-green-700">✓</button>
+                                    <button onClick={() => setEditingPrice(null)}
+                                      className="text-gray-400 text-xs hover:text-gray-600">✕</button>
+                                  </div>
+                                )
+                              }
+                              return (
+                                <button key={uc.id}
+                                  onClick={() => setEditingPrice({ productId: p.id, configId: uc.id, value: uc.price.toFixed(2) })}
+                                  title="Fiyatı düzenle"
+                                  className="text-xs bg-blue-50 text-blue-700 border border-blue-100 rounded px-1.5 py-0.5 hover:bg-blue-100 transition-colors">
+                                  {uc.unitType} ₺{uc.price.toFixed(2)}
+                                </button>
+                              )
+                            })}
                           {p.unitConfigs.length === 0 && (
                             <span className="text-xs text-gray-300">—</span>
                           )}
