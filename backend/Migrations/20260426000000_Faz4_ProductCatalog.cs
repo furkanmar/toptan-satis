@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace WholesaleApi.Migrations
 {
     /// <inheritdoc />
+    [Migration("20260426000000_Faz4_ProductCatalog")]
     public partial class Faz4_ProductCatalog : Migration
     {
         /// <inheritdoc />
