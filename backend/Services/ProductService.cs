@@ -7,18 +7,23 @@ namespace WholesaleApi.Services;
 
 public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpContextAccessor http)
 {
-    public async Task<List<ProductDto>> GetAllAsync(Guid? wholesalerId = null, Guid? categoryId = null)
+    public async Task<List<ProductDto>> GetAllAsync(Guid? wholesalerId = null, Guid? categoryId = null, bool includeInactive = false)
     {
         var q = db.Products
             .Include(p => p.Images)
             .Include(p => p.Category)
             .Include(p => p.Wholesaler)
-            .Where(p => p.IsActive);
+            .Include(p => p.CatalogItem)
+                .ThenInclude(c => c!.Barcodes)
+            .AsQueryable();
 
+        if (!includeInactive) q = q.Where(p => p.IsActive);
         if (wholesalerId.HasValue) q = q.Where(p => p.WholesalerId == wholesalerId);
         if (categoryId.HasValue) q = q.Where(p => p.CategoryId == categoryId);
 
-        return await q.Select(p => MapDto(p, http)).ToListAsync();
+        return await q.OrderBy(p => p.Name)
+            .Select(p => MapDto(p, http))
+            .ToListAsync();
     }
 
     public async Task<ProductDto> GetByIdAsync(Guid id)
@@ -27,6 +32,8 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
             .Include(p => p.Images)
             .Include(p => p.Category)
             .Include(p => p.Wholesaler)
+            .Include(p => p.CatalogItem)
+                .ThenInclude(c => c!.Barcodes)
             .FirstOrDefaultAsync(p => p.Id == id)
             ?? throw new KeyNotFoundException("Ürün bulunamadı");
 
@@ -44,8 +51,16 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
             Price = dto.Price,
             Unit = dto.Unit,
             MinOrderQty = dto.MinOrderQty,
-            Stock = dto.Stock
+            Stock = dto.Stock,
+            CatalogItemId = dto.CatalogItemId
         };
+
+        // Catalog item'dan unit senkronize et
+        if (dto.CatalogItemId.HasValue)
+        {
+            var catalog = await db.CatalogItems.FindAsync(dto.CatalogItemId);
+            if (catalog != null) product.Unit = catalog.Unit;
+        }
 
         db.Products.Add(product);
         await db.SaveChangesAsync();
@@ -65,6 +80,10 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
         if (dto.MinOrderQty.HasValue) product.MinOrderQty = dto.MinOrderQty.Value;
         if (dto.Stock.HasValue) product.Stock = dto.Stock.Value;
         if (dto.IsActive.HasValue) product.IsActive = dto.IsActive.Value;
+        if (dto.CategoryId.HasValue) product.CategoryId = dto.CategoryId.Value;
+        // Guid.Empty → bağlantıyı kaldır
+        if (dto.CatalogItemId.HasValue)
+            product.CatalogItemId = dto.CatalogItemId.Value == Guid.Empty ? null : dto.CatalogItemId.Value;
 
         await db.SaveChangesAsync();
         return await GetByIdAsync(id);
@@ -76,6 +95,9 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
             ?? throw new KeyNotFoundException("Ürün bulunamadı");
 
         var ext = Path.GetExtension(file.FileName).ToLower();
+        if (!new[] { ".jpg", ".jpeg", ".png", ".webp" }.Contains(ext))
+            throw new InvalidOperationException("Desteklenmeyen dosya formatı");
+
         var fileName = $"{Guid.NewGuid()}{ext}";
         var uploadPath = Path.Combine(env.WebRootPath, "uploads", fileName);
 
@@ -90,6 +112,39 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
             IsMain = isFirst
         });
 
+        await db.SaveChangesAsync();
+    }
+
+    public async Task DeleteImageAsync(Guid productId, Guid imageId, Guid wholesalerId)
+    {
+        _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
+            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+
+        var image = await db.ProductImages.FirstOrDefaultAsync(i => i.Id == imageId && i.ProductId == productId)
+            ?? throw new KeyNotFoundException("Görsel bulunamadı");
+
+        var wasMain = image.IsMain;
+
+        var filePath = Path.Combine(env.WebRootPath, image.FilePath);
+        if (File.Exists(filePath)) File.Delete(filePath);
+
+        db.ProductImages.Remove(image);
+        await db.SaveChangesAsync();
+
+        if (wasMain)
+        {
+            var next = await db.ProductImages.FirstOrDefaultAsync(i => i.ProductId == productId);
+            if (next != null) { next.IsMain = true; await db.SaveChangesAsync(); }
+        }
+    }
+
+    public async Task SetMainImageAsync(Guid productId, Guid imageId, Guid wholesalerId)
+    {
+        _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
+            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+
+        var images = await db.ProductImages.Where(i => i.ProductId == productId).ToListAsync();
+        foreach (var img in images) img.IsMain = img.Id == imageId;
         await db.SaveChangesAsync();
     }
 
@@ -110,12 +165,24 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
             MinOrderQty = p.MinOrderQty,
             Stock = p.Stock,
             IsActive = p.IsActive,
-            Images = p.Images.Select(i => new ProductImageDto
+            CreatedAt = p.CreatedAt,
+            CatalogItemId = p.CatalogItemId,
+            Brand = p.CatalogItem?.Brand,
+            Manufacturer = p.CatalogItem?.Manufacturer,
+            Barcodes = p.CatalogItem?.Barcodes.Select(b => new BarcodeDto
             {
-                Id = i.Id,
-                Url = $"{baseUrl}/{i.FilePath}",
-                IsMain = i.IsMain
-            }).ToList()
+                Id = b.Id,
+                Barcode = b.Barcode,
+                Note = b.Note
+            }).ToList() ?? [],
+            Images = p.Images
+                .OrderByDescending(i => i.IsMain)
+                .Select(i => new ProductImageDto
+                {
+                    Id = i.Id,
+                    Url = $"{baseUrl}/{i.FilePath}",
+                    IsMain = i.IsMain
+                }).ToList()
         };
     }
 }

@@ -8,6 +8,12 @@ export interface AuthResponse {
   displayName: string
 }
 
+export interface Barcode {
+  id: string
+  barcode: string
+  note?: string
+}
+
 export interface Product {
   id: string
   wholesalerId: string
@@ -21,7 +27,33 @@ export interface Product {
   minOrderQty: number
   stock: number
   isActive: boolean
+  createdAt: string
   images: ProductImage[]
+  // Katalog bilgileri
+  catalogItemId?: string
+  brand?: string
+  manufacturer?: string
+  barcodes: Barcode[]
+}
+
+export interface CatalogItem {
+  id: string
+  name: string
+  description?: string
+  brand?: string
+  manufacturer?: string
+  unit: string
+  isActive: boolean
+  createdAt: string
+  barcodes: Barcode[]
+  images: CatalogImage[]
+  productCount: number
+}
+
+export interface CatalogImage {
+  id: string
+  url: string
+  isMain: boolean
 }
 
 export interface ProductImage {

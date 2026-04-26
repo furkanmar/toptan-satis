@@ -45,12 +45,28 @@ public class CategoriesController(AppDbContext db) : ControllerBase
         var cat = await db.Categories.FindAsync(id);
         if (cat is null) return NotFound();
         if (cat.WholesalerId != wholesalerId) return Forbid();
-        if (await db.Products.AnyAsync(p => p.CategoryId == id))
-            return BadRequest(new { error = "Bu kategoride ürün var, önce ürünleri taşı" });
+
+        // Kategoride ürün varsa "Diğer" kategorisine taşı
+        var products = await db.Products.Where(p => p.CategoryId == id).ToListAsync();
+        if (products.Count > 0)
+        {
+            var diger = await db.Categories
+                .FirstOrDefaultAsync(c => c.WholesalerId == wholesalerId && c.Slug == "diger");
+
+            if (diger is null)
+            {
+                diger = new Category { Name = "Diğer", Slug = "diger", WholesalerId = wholesalerId };
+                db.Categories.Add(diger);
+                await db.SaveChangesAsync();
+            }
+
+            foreach (var p in products) p.CategoryId = diger.Id;
+            await db.SaveChangesAsync();
+        }
 
         db.Categories.Remove(cat);
         await db.SaveChangesAsync();
-        return Ok();
+        return Ok(new { reassigned = products.Count });
     }
 
     private async Task<Guid> GetWholesalerId()

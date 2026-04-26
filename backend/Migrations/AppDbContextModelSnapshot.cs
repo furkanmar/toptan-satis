@@ -46,6 +46,91 @@ namespace WholesaleApi.Migrations
                     b.ToTable("Categories");
                 });
 
+            modelBuilder.Entity("WholesaleApi.Entities.CatalogItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Brand")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Manufacturer")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CatalogItems");
+                });
+
+            modelBuilder.Entity("WholesaleApi.Entities.CatalogItemBarcode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CatalogItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Barcode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatalogItemId");
+
+                    b.HasIndex("Barcode");
+
+                    b.ToTable("CatalogItemBarcodes");
+                });
+
+            modelBuilder.Entity("WholesaleApi.Entities.CatalogItemImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CatalogItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsMain")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatalogItemId");
+
+                    b.ToTable("CatalogItemImages");
+                });
+
             modelBuilder.Entity("WholesaleApi.Entities.CreditTransaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -201,11 +286,16 @@ namespace WholesaleApi.Migrations
                     b.Property<Guid>("WholesalerId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CatalogItemId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("WholesalerId");
+
+                    b.HasIndex("CatalogItemId");
 
                     b.ToTable("Products");
                 });
@@ -430,6 +520,28 @@ namespace WholesaleApi.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("WholesaleApi.Entities.CatalogItemBarcode", b =>
+                {
+                    b.HasOne("WholesaleApi.Entities.CatalogItem", "CatalogItem")
+                        .WithMany("Barcodes")
+                        .HasForeignKey("CatalogItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CatalogItem");
+                });
+
+            modelBuilder.Entity("WholesaleApi.Entities.CatalogItemImage", b =>
+                {
+                    b.HasOne("WholesaleApi.Entities.CatalogItem", "CatalogItem")
+                        .WithMany("Images")
+                        .HasForeignKey("CatalogItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CatalogItem");
+                });
+
             modelBuilder.Entity("WholesaleApi.Entities.Product", b =>
                 {
                     b.HasOne("WholesaleApi.Entities.Category", "Category")
@@ -444,9 +556,15 @@ namespace WholesaleApi.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("WholesaleApi.Entities.CatalogItem", "CatalogItem")
+                        .WithMany("Products")
+                        .HasForeignKey("CatalogItemId");
+
                     b.Navigation("Category");
 
                     b.Navigation("Wholesaler");
+
+                    b.Navigation("CatalogItem");
                 });
 
             modelBuilder.Entity("WholesaleApi.Entities.ProductImage", b =>
@@ -499,6 +617,15 @@ namespace WholesaleApi.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("WholesaleApi.Entities.CatalogItem", b =>
+                {
+                    b.Navigation("Barcodes");
+
+                    b.Navigation("Images");
+
+                    b.Navigation("Products");
                 });
 
             modelBuilder.Entity("WholesaleApi.Entities.Category", b =>

@@ -15,8 +15,9 @@ public class ProductsController(ProductService productService, AppDbContext db) 
     [HttpGet]
     public async Task<List<ProductDto>> GetAll(
         [FromQuery] Guid? wholesalerId,
-        [FromQuery] Guid? categoryId)
-        => await productService.GetAllAsync(wholesalerId, categoryId);
+        [FromQuery] Guid? categoryId,
+        [FromQuery] bool includeInactive = false)
+        => await productService.GetAllAsync(wholesalerId, categoryId, includeInactive);
 
     [HttpGet("{id:guid}")]
     public async Task<ProductDto> GetById(Guid id)
@@ -45,6 +46,24 @@ public class ProductsController(ProductService productService, AppDbContext db) 
         var wholesalerId = await GetWholesalerId();
         await productService.UploadImageAsync(id, wholesalerId, file);
         return Ok(new { message = "Görsel yüklendi" });
+    }
+
+    [HttpDelete("{id:guid}/images/{imageId:guid}")]
+    [Authorize(Roles = "Wholesaler")]
+    public async Task<IActionResult> DeleteImage(Guid id, Guid imageId)
+    {
+        var wholesalerId = await GetWholesalerId();
+        await productService.DeleteImageAsync(id, imageId, wholesalerId);
+        return Ok(new { message = "Görsel silindi" });
+    }
+
+    [HttpPatch("{id:guid}/images/{imageId:guid}/set-main")]
+    [Authorize(Roles = "Wholesaler")]
+    public async Task<IActionResult> SetMainImage(Guid id, Guid imageId)
+    {
+        var wholesalerId = await GetWholesalerId();
+        await productService.SetMainImageAsync(id, imageId, wholesalerId);
+        return Ok(new { message = "Ana görsel güncellendi" });
     }
 
     private async Task<Guid> GetWholesalerId()

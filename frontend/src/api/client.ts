@@ -34,7 +34,7 @@ export const authApi = {
 
 // ─── Products ────────────────────────────────────────────────────────────────
 export const productsApi = {
-  getAll: (params?: { wholesalerId?: string; categoryId?: string }) =>
+  getAll: (params?: { wholesalerId?: string; categoryId?: string; includeInactive?: boolean }) =>
     api.get('/products', { params }).then(r => r.data),
   getById: (id: string) =>
     api.get(`/products/${id}`).then(r => r.data),
@@ -47,8 +47,39 @@ export const productsApi = {
     form.append('file', file)
     return api.post(`/products/${id}/images`, form, {
       headers: { 'Content-Type': 'multipart/form-data' }
-    })
-  }
+    }).then(r => r.data)
+  },
+  deleteImage: (productId: string, imageId: string) =>
+    api.delete(`/products/${productId}/images/${imageId}`).then(r => r.data),
+  setMainImage: (productId: string, imageId: string) =>
+    api.patch(`/products/${productId}/images/${imageId}/set-main`).then(r => r.data),
+}
+
+// ─── Catalog ─────────────────────────────────────────────────────────────────
+export const catalogApi = {
+  search: (params?: { q?: string; barcode?: string; page?: number; pageSize?: number }) =>
+    api.get('/catalog', { params }).then(r => r.data),
+  getById: (id: string) =>
+    api.get(`/catalog/${id}`).then(r => r.data),
+  create: (data: unknown) =>
+    api.post('/catalog', data).then(r => r.data),
+  update: (id: string, data: unknown) =>
+    api.put(`/catalog/${id}`, data).then(r => r.data),
+  addBarcode: (id: string, barcode: string, note?: string) =>
+    api.post(`/catalog/${id}/barcodes`, { barcode, note }).then(r => r.data),
+  deleteBarcode: (id: string, barcodeId: string) =>
+    api.delete(`/catalog/${id}/barcodes/${barcodeId}`).then(r => r.data),
+  uploadImage: (id: string, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post(`/catalog/${id}/images`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }).then(r => r.data)
+  },
+  deleteImage: (id: string, imageId: string) =>
+    api.delete(`/catalog/${id}/images/${imageId}`).then(r => r.data),
+  setMainImage: (id: string, imageId: string) =>
+    api.patch(`/catalog/${id}/images/${imageId}/set-main`).then(r => r.data),
 }
 
 // ─── Orders ──────────────────────────────────────────────────────────────────

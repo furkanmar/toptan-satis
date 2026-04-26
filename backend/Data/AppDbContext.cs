@@ -11,6 +11,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+    public DbSet<CatalogItem> CatalogItems => Set<CatalogItem>();
+    public DbSet<CatalogItemBarcode> CatalogItemBarcodes => Set<CatalogItemBarcode>();
+    public DbSet<CatalogItemImage> CatalogItemImages => Set<CatalogItemImage>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<StoreWholesaler> StoreWholesalers => Set<StoreWholesaler>();
@@ -37,6 +40,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         // Product
         mb.Entity<Product>().Property(p => p.Price).HasPrecision(18, 2);
         mb.Entity<Product>().Property(p => p.Unit).HasConversion<string>();
+        mb.Entity<Product>()
+            .HasOne(p => p.CatalogItem)
+            .WithMany(c => c.Products)
+            .HasForeignKey(p => p.CatalogItemId)
+            .IsRequired(false);
+
+        // CatalogItem
+        mb.Entity<CatalogItem>().Property(c => c.Unit).HasConversion<string>();
+        mb.Entity<CatalogItemBarcode>()
+            .HasOne(b => b.CatalogItem)
+            .WithMany(c => c.Barcodes)
+            .HasForeignKey(b => b.CatalogItemId);
+        mb.Entity<CatalogItemImage>()
+            .HasOne(i => i.CatalogItem)
+            .WithMany(c => c.Images)
+            .HasForeignKey(i => i.CatalogItemId);
 
         // Order
         mb.Entity<Order>().Property(o => o.TotalAmount).HasPrecision(18, 2);
