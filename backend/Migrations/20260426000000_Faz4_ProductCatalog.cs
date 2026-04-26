@@ -11,124 +11,92 @@ namespace WholesaleApi.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // CatalogItems tablosu
-            migrationBuilder.CreateTable(
-                name: "CatalogItems",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    Name = table.Column<string>(type: "text", nullable: false),
-                    Description = table.Column<string>(type: "text", nullable: true),
-                    Brand = table.Column<string>(type: "text", nullable: true),
-                    Manufacturer = table.Column<string>(type: "text", nullable: true),
-                    Unit = table.Column<string>(type: "text", nullable: false),
-                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_CatalogItems", x => x.Id);
-                });
+            // CatalogItems — temel ürün kataloğu
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS ""CatalogItems"" (
+                    ""Id""           uuid    NOT NULL,
+                    ""Name""         text    NOT NULL,
+                    ""Description""  text,
+                    ""Brand""        text,
+                    ""Manufacturer"" text,
+                    ""Unit""         text    NOT NULL,
+                    ""IsActive""     boolean NOT NULL DEFAULT true,
+                    ""CreatedAt""    timestamp without time zone NOT NULL,
+                    CONSTRAINT ""PK_CatalogItems"" PRIMARY KEY (""Id"")
+                );
+            ");
 
-            // CatalogItemBarcodes tablosu
-            migrationBuilder.CreateTable(
-                name: "CatalogItemBarcodes",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    CatalogItemId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Barcode = table.Column<string>(type: "text", nullable: false),
-                    Note = table.Column<string>(type: "text", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_CatalogItemBarcodes", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_CatalogItemBarcodes_CatalogItems_CatalogItemId",
-                        column: x => x.CatalogItemId,
-                        principalTable: "CatalogItems",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
+            // CatalogItemBarcodes — ürün başına çoklu barkod
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS ""CatalogItemBarcodes"" (
+                    ""Id""            uuid NOT NULL,
+                    ""CatalogItemId"" uuid NOT NULL,
+                    ""Barcode""       text NOT NULL,
+                    ""Note""          text,
+                    CONSTRAINT ""PK_CatalogItemBarcodes"" PRIMARY KEY (""Id""),
+                    CONSTRAINT ""FK_CatalogItemBarcodes_CatalogItems_CatalogItemId""
+                        FOREIGN KEY (""CatalogItemId"")
+                        REFERENCES ""CatalogItems""(""Id"") ON DELETE CASCADE
+                );
+            ");
 
-            // CatalogItemImages tablosu
-            migrationBuilder.CreateTable(
-                name: "CatalogItemImages",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    CatalogItemId = table.Column<Guid>(type: "uuid", nullable: false),
-                    FilePath = table.Column<string>(type: "text", nullable: false),
-                    IsMain = table.Column<bool>(type: "boolean", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_CatalogItemImages", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_CatalogItemImages_CatalogItems_CatalogItemId",
-                        column: x => x.CatalogItemId,
-                        principalTable: "CatalogItems",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
+            // CatalogItemImages — katalog görselleri
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS ""CatalogItemImages"" (
+                    ""Id""            uuid    NOT NULL,
+                    ""CatalogItemId"" uuid    NOT NULL,
+                    ""FilePath""      text    NOT NULL,
+                    ""IsMain""        boolean NOT NULL DEFAULT false,
+                    ""CreatedAt""     timestamp without time zone NOT NULL,
+                    CONSTRAINT ""PK_CatalogItemImages"" PRIMARY KEY (""Id""),
+                    CONSTRAINT ""FK_CatalogItemImages_CatalogItems_CatalogItemId""
+                        FOREIGN KEY (""CatalogItemId"")
+                        REFERENCES ""CatalogItems""(""Id"") ON DELETE CASCADE
+                );
+            ");
 
             // Products tablosuna CatalogItemId ekle
-            migrationBuilder.AddColumn<Guid>(
-                name: "CatalogItemId",
-                table: "Products",
-                type: "uuid",
-                nullable: true);
+            migrationBuilder.Sql(@"
+                ALTER TABLE ""Products""
+                    ADD COLUMN IF NOT EXISTS ""CatalogItemId"" uuid;
+            ");
 
-            // Index'ler
-            migrationBuilder.CreateIndex(
-                name: "IX_CatalogItemBarcodes_CatalogItemId",
-                table: "CatalogItemBarcodes",
-                column: "CatalogItemId");
+            // Index'ler — IF NOT EXISTS ile güvenli
+            migrationBuilder.Sql(@"
+                CREATE INDEX IF NOT EXISTS ""IX_CatalogItemBarcodes_CatalogItemId""
+                    ON ""CatalogItemBarcodes""(""CatalogItemId"");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_CatalogItemBarcodes_Barcode",
-                table: "CatalogItemBarcodes",
-                column: "Barcode");
+                CREATE INDEX IF NOT EXISTS ""IX_CatalogItemBarcodes_Barcode""
+                    ON ""CatalogItemBarcodes""(""Barcode"");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_CatalogItemImages_CatalogItemId",
-                table: "CatalogItemImages",
-                column: "CatalogItemId");
+                CREATE INDEX IF NOT EXISTS ""IX_CatalogItemImages_CatalogItemId""
+                    ON ""CatalogItemImages""(""CatalogItemId"");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Products_CatalogItemId",
-                table: "Products",
-                column: "CatalogItemId");
+                CREATE INDEX IF NOT EXISTS ""IX_Products_CatalogItemId""
+                    ON ""Products""(""CatalogItemId"");
+            ");
 
-            // Products → CatalogItems FK
-            migrationBuilder.AddForeignKey(
-                name: "FK_Products_CatalogItems_CatalogItemId",
-                table: "Products",
-                column: "CatalogItemId",
-                principalTable: "CatalogItems",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
+            // Products → CatalogItems FK (SET NULL — ürün silinse de product kalır)
+            migrationBuilder.Sql(@"
+                ALTER TABLE ""Products""
+                    DROP CONSTRAINT IF EXISTS ""FK_Products_CatalogItems_CatalogItemId"";
+
+                ALTER TABLE ""Products""
+                    ADD CONSTRAINT ""FK_Products_CatalogItems_CatalogItemId""
+                    FOREIGN KEY (""CatalogItemId"")
+                    REFERENCES ""CatalogItems""(""Id"") ON DELETE SET NULL;
+            ");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_Products_CatalogItems_CatalogItemId",
-                table: "Products");
-
-            migrationBuilder.DropIndex(
-                name: "IX_Products_CatalogItemId",
-                table: "Products");
-
-            migrationBuilder.DropColumn(
-                name: "CatalogItemId",
-                table: "Products");
-
-            migrationBuilder.DropTable(name: "CatalogItemImages");
-            migrationBuilder.DropTable(name: "CatalogItemBarcodes");
-            migrationBuilder.DropTable(name: "CatalogItems");
+            migrationBuilder.Sql(@"ALTER TABLE ""Products"" DROP CONSTRAINT IF EXISTS ""FK_Products_CatalogItems_CatalogItemId"";");
+            migrationBuilder.Sql(@"DROP INDEX IF EXISTS ""IX_Products_CatalogItemId"";");
+            migrationBuilder.Sql(@"ALTER TABLE ""Products"" DROP COLUMN IF EXISTS ""CatalogItemId"";");
+            migrationBuilder.Sql(@"DROP TABLE IF EXISTS ""CatalogItemImages"" CASCADE;");
+            migrationBuilder.Sql(@"DROP TABLE IF EXISTS ""CatalogItemBarcodes"" CASCADE;");
+            migrationBuilder.Sql(@"DROP TABLE IF EXISTS ""CatalogItems"" CASCADE;");
         }
     }
 }
