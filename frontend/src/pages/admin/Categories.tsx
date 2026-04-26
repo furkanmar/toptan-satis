@@ -7,7 +7,8 @@ import type { Category } from '../../types'
 const NAV = [
   { to: '/admin', label: 'Dashboard' },
   { to: '/admin/users', label: 'Kullanıcılar' },
-  { to: '/admin/categories', label: 'Kategoriler' }
+  { to: '/admin/store-wholesalers', label: 'Mağaza-Toptancı' },
+  { to: '/admin/categories', label: 'Kategoriler' },
 ]
 
 export default function AdminCategories() {

@@ -1,9 +1,9 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Layout from '../../components/Layout'
-import { productsApi, categoriesApi, catalogApi } from '../../api/client'
+import { productsApi, categoriesApi } from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
-import type { Product, Category, CatalogItem } from '../../types'
+import type { Product, Category, ProductUnitConfig } from '../../types'
 
 const NAV = [
   { to: '/wholesaler', label: 'Ana Sayfa' },
@@ -13,7 +13,7 @@ const NAV = [
   { to: '/wholesaler/settings', label: 'Ayarlar' },
 ]
 
-const UNITS = ['Adet', 'Kg', 'Koli', 'Litre', 'Paket']
+const UNIT_TYPES = ['Adet', 'Kg', 'Koli', 'Litre', 'Paket']
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,23 +21,19 @@ interface ProductForm {
   name: string
   description: string
   price: string
-  unit: string
   minOrderQty: string
   stock: string
   categoryId: string
-  catalogItemId: string
   brand: string
   manufacturer: string
-  newBarcodes: string  // virgülle ayrılmış
 }
 
 const emptyForm = (): ProductForm => ({
-  name: '', description: '', price: '', unit: 'Adet',
-  minOrderQty: '1', stock: '0', categoryId: '',
-  catalogItemId: '', brand: '', manufacturer: '', newBarcodes: ''
+  name: '', description: '', price: '', minOrderQty: '1',
+  stock: '0', categoryId: '', brand: '', manufacturer: '',
 })
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function StockBadge({ stock }: { stock: number }) {
   if (stock <= 0) return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Stok yok</span>
@@ -45,61 +41,7 @@ function StockBadge({ stock }: { stock: number }) {
   return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">{stock}</span>
 }
 
-// ─── Catalog search panel inside slide-over ───────────────────────────────────
-
-function CatalogSearch({ onSelect }: { onSelect: (item: CatalogItem) => void }) {
-  const [q, setQ] = useState('')
-  const [barcode, setBarcode] = useState('')
-
-  const { data, isFetching } = useQuery<{ items: CatalogItem[] }>({
-    queryKey: ['catalog-search', q, barcode],
-    queryFn: () => catalogApi.search({ q: q || undefined, barcode: barcode || undefined, pageSize: 8 }),
-    enabled: q.length >= 2 || barcode.length >= 3,
-    staleTime: 30_000,
-  })
-
-  return (
-    <div>
-      <div className="flex gap-2 mb-2">
-        <input
-          placeholder="Ürün adı veya marka…"
-          value={q}
-          onChange={e => { setQ(e.target.value); setBarcode('') }}
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <input
-          placeholder="Barkod"
-          value={barcode}
-          onChange={e => { setBarcode(e.target.value); setQ('') }}
-          className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-      {isFetching && <p className="text-xs text-gray-400 mb-2">Aranıyor…</p>}
-      {data?.items && data.items.length > 0 && (
-        <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto mb-2">
-          {data.items.map(item => (
-            <button
-              key={item.id}
-              onClick={() => onSelect(item)}
-              className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors"
-            >
-              <span className="block text-sm font-medium text-gray-900">{item.name}</span>
-              <span className="block text-xs text-gray-500">
-                {[item.brand, item.manufacturer, item.unit].filter(Boolean).join(' · ')}
-                {item.barcodes.length > 0 && ` · ${item.barcodes[0].barcode}`}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-      {data?.items && data.items.length === 0 && (q.length >= 2 || barcode.length >= 3) && (
-        <p className="text-xs text-gray-400 mb-2">Katalogda bulunamadı — aşağıda yeni ürün bilgilerini girin.</p>
-      )}
-    </div>
-  )
-}
-
-// ─── Image Manager inside slide-over ─────────────────────────────────────────
+// ─── Image Manager ────────────────────────────────────────────────────────────
 
 function ImageManager({ product, onRefresh }: { product: Product; onRefresh: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -109,12 +51,10 @@ function ImageManager({ product, onRefresh }: { product: Product; onRefresh: () 
     mutationFn: (file: File) => productsApi.uploadImage(product.id, file),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-products'] }); onRefresh() }
   })
-
   const deleteImg = useMutation({
     mutationFn: (imageId: string) => productsApi.deleteImage(product.id, imageId),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-products'] }); onRefresh() }
   })
-
   const setMain = useMutation({
     mutationFn: (imageId: string) => productsApi.setMainImage(product.id, imageId),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-products'] }); onRefresh() }
@@ -131,17 +71,11 @@ function ImageManager({ product, onRefresh }: { product: Product; onRefresh: () 
             )}
             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
               {!img.isMain && (
-                <button
-                  onClick={() => setMain.mutate(img.id)}
-                  title="Ana yap"
-                  className="p-1 bg-blue-500 text-white rounded text-xs"
-                >★</button>
+                <button onClick={() => setMain.mutate(img.id)} title="Ana yap"
+                  className="p-1 bg-blue-500 text-white rounded text-xs">★</button>
               )}
-              <button
-                onClick={() => deleteImg.mutate(img.id)}
-                title="Sil"
-                className="p-1 bg-red-500 text-white rounded text-xs"
-              >✕</button>
+              <button onClick={() => deleteImg.mutate(img.id)} title="Sil"
+                className="p-1 bg-red-500 text-white rounded text-xs">✕</button>
             </div>
           </div>
         ))}
@@ -153,64 +87,220 @@ function ImageManager({ product, onRefresh }: { product: Product; onRefresh: () 
           {upload.isPending ? '…' : '+'}
         </button>
       </div>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={e => {
-          const file = e.target.files?.[0]
-          if (file) upload.mutate(file)
-          e.target.value = ''
-        }}
-      />
+      <input ref={fileRef} type="file" accept="image/*" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = '' }} />
     </div>
   )
 }
 
-// ─── Slide-over panel ─────────────────────────────────────────────────────────
+// ─── Unit Config Row ──────────────────────────────────────────────────────────
 
-interface SlideOverProps {
-  product: Product | null   // null = yeni ürün
+interface UnitConfigRowProps {
+  productId: string
+  config: ProductUnitConfig
+  onChanged: () => void
+}
+
+function UnitConfigRow({ productId, config, onChanged }: UnitConfigRowProps) {
+  const qc = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [editForm, setEditForm] = useState({
+    unitType: config.unitType,
+    contentQty: config.contentQty.toString(),
+    price: config.price.toString(),
+    sortOrder: config.sortOrder.toString(),
+  })
+  const [newBarcode, setNewBarcode] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const refresh = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ['my-products'] })
+    onChanged()
+  }, [qc, onChanged])
+
+  const updateConfig = useMutation({
+    mutationFn: () => productsApi.updateUnitConfig(productId, config.id, {
+      unitType: editForm.unitType,
+      contentQty: parseInt(editForm.contentQty) || 1,
+      price: parseFloat(editForm.price) || 0,
+      sortOrder: parseInt(editForm.sortOrder) || 0,
+    }),
+    onSuccess: () => { setEditing(false); refresh() }
+  })
+
+  const deleteConfig = useMutation({
+    mutationFn: () => productsApi.deleteUnitConfig(productId, config.id),
+    onSuccess: refresh
+  })
+
+  const addBarcode = useMutation({
+    mutationFn: () => productsApi.addBarcode(productId, config.id, newBarcode.trim()),
+    onSuccess: () => { setNewBarcode(''); refresh() }
+  })
+
+  const deleteBarcode = useMutation({
+    mutationFn: (barcodeId: string) => productsApi.deleteBarcode(productId, config.id, barcodeId),
+    onSuccess: refresh
+  })
+
+  if (confirmDelete) {
+    return (
+      <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg text-sm">
+        <span className="flex-1 text-red-700">"{config.unitType}" silinsin mi?</span>
+        <button onClick={() => deleteConfig.mutate()}
+          className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700">Evet, sil</button>
+        <button onClick={() => setConfirmDelete(false)}
+          className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-50">Vazgeç</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+      {editing ? (
+        <div className="space-y-2">
+          <div className="grid grid-cols-4 gap-2">
+            <div>
+              <label className="text-xs text-gray-500 mb-0.5 block">Birim</label>
+              <select value={editForm.unitType} onChange={e => setEditForm(f => ({ ...f, unitType: e.target.value }))}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                {UNIT_TYPES.map(u => <option key={u}>{u}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-0.5 block">İçerik</label>
+              <input type="number" min="1" value={editForm.contentQty}
+                onChange={e => setEditForm(f => ({ ...f, contentQty: e.target.value }))}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-0.5 block">Fiyat (₺)</label>
+              <input type="number" min="0" step="0.01" value={editForm.price}
+                onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-0.5 block">Sıra</label>
+              <input type="number" min="0" value={editForm.sortOrder}
+                onChange={e => setEditForm(f => ({ ...f, sortOrder: e.target.value }))}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => updateConfig.mutate()} disabled={updateConfig.isPending}
+              className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50">
+              {updateConfig.isPending ? 'Kaydediliyor…' : 'Kaydet'}
+            </button>
+            <button onClick={() => setEditing(false)}
+              className="px-3 py-1.5 border border-gray-300 rounded text-xs hover:bg-gray-50">İptal</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <div className="flex-1 flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded">{config.unitType}</span>
+            {config.contentQty > 1 && (
+              <span className="text-xs text-gray-500">{config.contentQty} adet içerir</span>
+            )}
+            <span className="text-sm font-medium text-gray-900">₺{config.price.toFixed(2)}</span>
+          </div>
+          <button onClick={() => setEditing(true)}
+            className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 hover:bg-blue-50 rounded">Düzenle</button>
+          <button onClick={() => setConfirmDelete(true)}
+            className="text-xs text-red-500 hover:text-red-700 px-2 py-1 hover:bg-red-50 rounded">Sil</button>
+        </div>
+      )}
+
+      {/* Barkodlar */}
+      <div className="pl-1">
+        {config.barcodes.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-1.5">
+            {config.barcodes.map(b => (
+              <div key={b.id} className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded px-2 py-0.5">
+                <span className="text-xs font-mono text-gray-600">{b.barcode}</span>
+                {b.note && <span className="text-xs text-gray-400">({b.note})</span>}
+                <button onClick={() => deleteBarcode.mutate(b.id)}
+                  className="text-gray-300 hover:text-red-500 text-xs ml-0.5">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-1.5">
+          <input
+            value={newBarcode}
+            onChange={e => setNewBarcode(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && newBarcode.trim() && addBarcode.mutate()}
+            placeholder="Barkod ekle…"
+            className="flex-1 px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+          />
+          <button
+            onClick={() => addBarcode.mutate()}
+            disabled={!newBarcode.trim() || addBarcode.isPending}
+            className="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs disabled:opacity-50"
+          >+ Ekle</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Product Modal ────────────────────────────────────────────────────────────
+
+interface ProductModalProps {
+  product: Product | null
   categories: Category[]
   profileId: string
   onClose: () => void
 }
 
-function SlideOver({ product, categories, profileId, onClose }: SlideOverProps) {
+function ProductModal({ product, categories, profileId, onClose }: ProductModalProps) {
   const qc = useQueryClient()
   const isEdit = !!product
-  const [form, setForm] = useState<ProductForm>(() => product
+  const [localProduct, setLocalProduct] = useState<Product | null>(product)
+
+  const [form, setForm] = useState<ProductForm>(() => localProduct
     ? {
-        name: product.name,
-        description: product.description ?? '',
-        price: product.price.toString(),
-        unit: product.unit,
-        minOrderQty: product.minOrderQty.toString(),
-        stock: product.stock.toString(),
-        categoryId: product.categoryId,
-        catalogItemId: product.catalogItemId ?? '',
-        brand: product.brand ?? '',
-        manufacturer: product.manufacturer ?? '',
-        newBarcodes: '',
+        name: localProduct.name,
+        description: localProduct.description ?? '',
+        price: localProduct.price.toString(),
+        minOrderQty: localProduct.minOrderQty.toString(),
+        stock: localProduct.stock.toString(),
+        categoryId: localProduct.categoryId,
+        brand: localProduct.brand ?? '',
+        manufacturer: localProduct.manufacturer ?? '',
       }
     : emptyForm()
   )
-  const [showCatalogSearch, setShowCatalogSearch] = useState(!isEdit && !form.catalogItemId)
-  const set = (k: keyof ProductForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setForm(f => ({ ...f, [k]: e.target.value }))
+  const [isActive, setIsActive] = useState(localProduct?.isActive ?? true)
+  const [isDirty, setIsDirty] = useState(false)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
 
-  const onCatalogSelect = useCallback((item: CatalogItem) => {
-    setForm(f => ({
-      ...f,
-      name: f.name || item.name,
-      unit: item.unit,
-      brand: item.brand ?? '',
-      manufacturer: item.manufacturer ?? '',
-      catalogItemId: item.id,
-    }))
-    setShowCatalogSearch(false)
-  }, [])
+  // New unit config form
+  const [showNewConfig, setShowNewConfig] = useState(false)
+  const [newConfig, setNewConfig] = useState({ unitType: 'Adet', contentQty: '1', price: '', sortOrder: '0' })
+
+  const set = (k: keyof ProductForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    setForm(f => ({ ...f, [k]: e.target.value }))
+    setIsDirty(true)
+  }
+
+  const handleClose = () => {
+    if (isDirty) setShowCloseConfirm(true)
+    else onClose()
+  }
+
+  // ESC key
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [isDirty])
+
+  const refreshProduct = useCallback(async () => {
+    if (!localProduct) return
+    const updated = await productsApi.getById(localProduct.id)
+    setLocalProduct(updated)
+  }, [localProduct])
 
   const saveMutation = useMutation({
     mutationFn: async (f: ProductForm) => {
@@ -218,154 +308,284 @@ function SlideOver({ product, categories, profileId, onClose }: SlideOverProps) 
         name: f.name,
         description: f.description || undefined,
         price: parseFloat(f.price),
-        unit: f.unit,
         minOrderQty: parseInt(f.minOrderQty),
         stock: parseInt(f.stock),
         categoryId: f.categoryId,
-        catalogItemId: f.catalogItemId || undefined,
+        brand: f.brand || undefined,
+        manufacturer: f.manufacturer || undefined,
+        isActive,
       }
-      if (isEdit) {
-        return productsApi.update(product!.id, payload)
-      } else {
-        return productsApi.create({ ...payload, wholesalerId: profileId })
-      }
+      if (isEdit) return productsApi.update(localProduct!.id, payload)
+      return productsApi.create({ ...payload, wholesalerId: profileId })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-products'] })
+      setIsDirty(false)
       onClose()
+    }
+  })
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: (val: boolean) => productsApi.update(localProduct!.id, { isActive: val }),
+    onSuccess: (_, val) => {
+      setIsActive(val)
+      qc.invalidateQueries({ queryKey: ['my-products'] })
+    }
+  })
+
+  const addConfigMutation = useMutation({
+    mutationFn: () => productsApi.addUnitConfig(localProduct!.id, {
+      unitType: newConfig.unitType,
+      contentQty: parseInt(newConfig.contentQty) || 1,
+      price: parseFloat(newConfig.price) || 0,
+      sortOrder: parseInt(newConfig.sortOrder) || 0,
+      barcodes: [],
+    }),
+    onSuccess: () => {
+      setShowNewConfig(false)
+      setNewConfig({ unitType: 'Adet', contentQty: '1', price: '', sortOrder: '0' })
+      qc.invalidateQueries({ queryKey: ['my-products'] })
+      refreshProduct()
     }
   })
 
   const valid = form.name.trim() && form.price && parseFloat(form.price) > 0 && form.categoryId
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end">
+    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40" onClick={handleClose} />
 
-      {/* Panel */}
-      <div className="relative w-full max-w-md bg-white shadow-2xl flex flex-col h-full overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-          <h2 className="text-base font-semibold text-gray-900">
-            {isEdit ? 'Ürünü Düzenle' : 'Yeni Ürün Ekle'}
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-light">✕</button>
+      {/* Modal */}
+      <div
+        className="relative bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        style={{ width: '70vw', maxWidth: '900px', height: '80vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+          <div className="flex items-center gap-3">
+            <h2 className="text-base font-semibold text-gray-900">
+              {isEdit ? 'Ürünü Düzenle' : 'Yeni Ürün Ekle'}
+            </h2>
+            {isEdit && (
+              <button
+                onClick={() => toggleActiveMutation.mutate(!isActive)}
+                disabled={toggleActiveMutation.isPending}
+                className={`px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                  isActive
+                    ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                }`}
+              >
+                {isActive ? 'Aktif' : 'Pasif'}
+              </button>
+            )}
+            {!isEdit && (
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)}
+                  className="rounded" />
+                <span className="text-xs text-gray-600">Aktif olarak başlat</span>
+              </label>
+            )}
+          </div>
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 text-xl font-light">✕</button>
         </div>
 
-        <div className="flex-1 px-5 py-4 space-y-5">
-          {/* Katalog bağlantısı */}
-          <section>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Katalog Bilgisi</h3>
-              {form.catalogItemId
-                ? <button onClick={() => { setForm(f => ({ ...f, catalogItemId: '' })); setShowCatalogSearch(true) }} className="text-xs text-red-500 hover:text-red-700">Bağlantıyı kaldır</button>
-                : <button onClick={() => setShowCatalogSearch(s => !s)} className="text-xs text-blue-600 hover:text-blue-800">{showCatalogSearch ? 'Gizle' : 'Katalogdan seç'}</button>
-              }
+        {/* Body — scrollable */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="grid grid-cols-2 gap-6">
+            {/* LEFT: product info */}
+            <div className="space-y-5">
+              {/* Ürün bilgileri */}
+              <section>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Ürün Bilgileri</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Ürün Adı *</label>
+                    <input value={form.name} onChange={set('name')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Açıklama</label>
+                    <textarea value={form.description} onChange={set('description')} rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Kategori *</label>
+                    <select value={form.categoryId} onChange={set('categoryId')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">Seçin…</option>
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Marka</label>
+                      <input value={form.brand} onChange={set('brand')} placeholder="Ülker, Pınar…"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Üretici</label>
+                      <input value={form.manufacturer} onChange={set('manufacturer')} placeholder="Türkiye"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Fiyat & Stok */}
+              <section>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Fiyat & Stok</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Ref. Fiyat (₺) *</label>
+                    <input type="number" min="0" step="0.01" value={form.price} onChange={set('price')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Stok</label>
+                    <input type="number" min="0" value={form.stock} onChange={set('stock')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Min Sipariş</label>
+                    <input type="number" min="1" value={form.minOrderQty} onChange={set('minOrderQty')}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+              </section>
+
+              {/* Görseller (edit only) */}
+              {isEdit && localProduct && (
+                <section>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Görseller</h3>
+                  <ImageManager product={localProduct} onRefresh={refreshProduct} />
+                </section>
+              )}
             </div>
 
-            {form.catalogItemId && (
-              <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg mb-2">
-                <span className="text-blue-600 text-sm">🔗</span>
-                <span className="text-sm text-blue-700 font-medium">Kataloga bağlı</span>
-              </div>
-            )}
-
-            {showCatalogSearch && !form.catalogItemId && (
-              <CatalogSearch onSelect={onCatalogSelect} />
-            )}
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Marka</label>
-                <input value={form.brand} onChange={set('brand')} placeholder="Ülker, Pınar…"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Menşei / Üretici</label>
-                <input value={form.manufacturer} onChange={set('manufacturer')} placeholder="Türkiye"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            </div>
-          </section>
-
-          {/* Ürün bilgileri */}
-          <section>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Ürün Bilgileri</h3>
+            {/* RIGHT: unit configs */}
             <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Ürün Adı *</label>
-                <input value={form.name} onChange={set('name')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Birim Konfigürasyonları</h3>
+                {isEdit && (
+                  <button onClick={() => setShowNewConfig(s => !s)}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                    {showNewConfig ? 'İptal' : '+ Birim Ekle'}
+                  </button>
+                )}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Açıklama</label>
-                <textarea value={form.description} onChange={set('description')} rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Kategori *</label>
-                <select value={form.categoryId} onChange={set('categoryId')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Seçin…</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
-            </div>
-          </section>
 
-          {/* Fiyat & Stok */}
-          <section>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Fiyat & Stok</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Fiyat (₺) *</label>
-                <input type="number" min="0" step="0.01" value={form.price} onChange={set('price')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Birim</label>
-                <select value={form.unit} onChange={set('unit')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  {UNITS.map(u => <option key={u}>{u}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Stok</label>
-                <input type="number" min="0" value={form.stock} onChange={set('stock')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Min Sipariş</label>
-                <input type="number" min="1" value={form.minOrderQty} onChange={set('minOrderQty')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-            </div>
-          </section>
+              {!isEdit && (
+                <div className="text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  Ürün kaydedildikten sonra birim konfigürasyonları eklenebilir.
+                </div>
+              )}
 
-          {/* Görsel yönetimi (sadece düzenleme modunda) */}
-          {isEdit && (
-            <section>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Görseller</h3>
-              <ImageManager product={product!} onRefresh={() => qc.invalidateQueries({ queryKey: ['my-products'] })} />
-            </section>
-          )}
+              {isEdit && localProduct && (
+                <>
+                  {localProduct.unitConfigs.length === 0 && !showNewConfig && (
+                    <div className="text-xs text-gray-400 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      Henüz birim konfigürasyonu yok. "+ Birim Ekle" ile başlayın.
+                    </div>
+                  )}
+
+                  {localProduct.unitConfigs
+                    .slice()
+                    .sort((a, b) => a.sortOrder - b.sortOrder)
+                    .map(cfg => (
+                      <UnitConfigRow
+                        key={cfg.id}
+                        productId={localProduct.id}
+                        config={cfg}
+                        onChanged={refreshProduct}
+                      />
+                    ))}
+
+                  {showNewConfig && (
+                    <div className="border border-blue-200 bg-blue-50 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-medium text-blue-700">Yeni Birim</p>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          <label className="text-xs text-gray-500 mb-0.5 block">Birim</label>
+                          <select value={newConfig.unitType}
+                            onChange={e => setNewConfig(f => ({ ...f, unitType: e.target.value }))}
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                            {UNIT_TYPES.map(u => <option key={u}>{u}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 mb-0.5 block">İçerik</label>
+                          <input type="number" min="1" value={newConfig.contentQty}
+                            onChange={e => setNewConfig(f => ({ ...f, contentQty: e.target.value }))}
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 mb-0.5 block">Fiyat (₺)</label>
+                          <input type="number" min="0" step="0.01" value={newConfig.price}
+                            onChange={e => setNewConfig(f => ({ ...f, price: e.target.value }))}
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 mb-0.5 block">Sıra</label>
+                          <input type="number" min="0" value={newConfig.sortOrder}
+                            onChange={e => setNewConfig(f => ({ ...f, sortOrder: e.target.value }))}
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => addConfigMutation.mutate()}
+                          disabled={!newConfig.price || addConfigMutation.isPending}
+                          className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50">
+                          {addConfigMutation.isPending ? 'Ekleniyor…' : 'Ekle'}
+                        </button>
+                        <button onClick={() => setShowNewConfig(false)}
+                          className="px-3 py-1.5 border border-gray-300 rounded text-xs hover:bg-gray-50">İptal</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-200 flex gap-2 sticky bottom-0 bg-white">
+        <div className="px-6 py-4 border-t border-gray-200 flex gap-2 justify-end shrink-0">
+          <button onClick={handleClose}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors">
+            {isDirty ? 'Vazgeç' : 'Kapat'}
+          </button>
           <button
             onClick={() => saveMutation.mutate(form)}
             disabled={!valid || saveMutation.isPending}
-            className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {saveMutation.isPending ? 'Kaydediliyor…' : isEdit ? 'Güncelle' : 'Ekle'}
-          </button>
-          <button onClick={onClose}
-            className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors">
-            İptal
+            {saveMutation.isPending ? 'Kaydediliyor…' : isEdit ? 'Güncelle' : 'Oluştur'}
           </button>
         </div>
       </div>
+
+      {/* Dirty-state close confirmation */}
+      {showCloseConfirm && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
+            <h3 className="text-base font-semibold text-gray-900 mb-2">Kaydedilmemiş değişiklikler</h3>
+            <p className="text-sm text-gray-500 mb-4">Yaptığınız değişiklikler kaybolacak. Çıkmak istiyor musunuz?</p>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowCloseConfirm(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">
+                Hayır, devam et
+              </button>
+              <button onClick={onClose}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700">
+                Evet, çık
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -376,11 +596,10 @@ export default function WholesalerProducts() {
   const qc = useQueryClient()
   const profileId = useAuthStore(s => s.profileId)
 
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)  // null = Tümü
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'passive'>('all')
-  const [slideOver, setSlideOver] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
-  // Inline stok düzenleme
+  const [modal, setModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
   const [editingStock, setEditingStock] = useState<{ id: string; value: string } | null>(null)
 
   const { data: allProducts = [], isLoading } = useQuery<Product[]>({
@@ -405,22 +624,22 @@ export default function WholesalerProducts() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['my-products'] }); setEditingStock(null) }
   })
 
-  // Kategori bazlı ürün sayıları
   const countByCategory = (catId: string) => allProducts.filter(p => p.categoryId === catId).length
 
-  // Filtrelenmiş ürünler
   const filtered = allProducts.filter(p => {
     if (selectedCategoryId && p.categoryId !== selectedCategoryId) return false
     if (filterActive === 'active' && !p.isActive) return false
     if (filterActive === 'passive' && p.isActive) return false
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) &&
-        !(p.brand?.toLowerCase().includes(search.toLowerCase()))) return false
+    if (search) {
+      const q = search.toLowerCase()
+      const inName = p.name.toLowerCase().includes(q)
+      const inBrand = p.brand?.toLowerCase().includes(q)
+      const inManufacturer = p.manufacturer?.toLowerCase().includes(q)
+      const inBarcode = p.unitConfigs.some(uc => uc.barcodes.some(b => b.barcode.includes(search)))
+      if (!inName && !inBrand && !inManufacturer && !inBarcode) return false
+    }
     return true
   })
-
-  const openNew = () => setSlideOver({ open: true, product: null })
-  const openEdit = (p: Product) => setSlideOver({ open: true, product: p })
-  const closeSlide = () => setSlideOver({ open: false, product: null })
 
   return (
     <Layout navLinks={NAV}>
@@ -428,14 +647,14 @@ export default function WholesalerProducts() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-900">Ürünlerim</h1>
         <button
-          onClick={openNew}
+          onClick={() => setModal({ open: true, product: null })}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
         >
           + Yeni Ürün
         </button>
       </div>
 
-      {/* Kategori kartları */}
+      {/* Kategori filtreleri */}
       <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
         <button
           onClick={() => setSelectedCategoryId(null)}
@@ -468,14 +687,14 @@ export default function WholesalerProducts() {
         ))}
       </div>
 
-      {/* Arama + Filtreler */}
+      {/* Arama + Durum filtresi */}
       <div className="flex gap-3 mb-4">
         <div className="relative flex-1">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Ürün adı veya marka ara…"
+            placeholder="Ürün adı, marka, üretici veya barkod…"
             className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -490,7 +709,7 @@ export default function WholesalerProducts() {
         </select>
       </div>
 
-      {/* Ürün tablosu */}
+      {/* Tablo */}
       {isLoading ? (
         <div className="text-center py-16 text-gray-400">Yükleniyor…</div>
       ) : (
@@ -505,7 +724,7 @@ export default function WholesalerProducts() {
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Ürün</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 hidden md:table-cell">Kategori</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500">Fiyat</th>
+                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 hidden lg:table-cell">Birimler</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-gray-500">Stok</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 hidden sm:table-cell">Min</th>
                   <th className="text-center px-4 py-3 text-xs font-medium text-gray-500">Durum</th>
@@ -528,13 +747,11 @@ export default function WholesalerProducts() {
                           </div>
                           <div className="min-w-0">
                             <span className="font-medium text-gray-900 block truncate">{p.name}</span>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {p.brand && <span className="text-xs text-gray-400">{p.brand}</span>}
-                              {p.barcodes.length > 0 && (
-                                <span className="text-xs text-gray-300 font-mono">{p.barcodes[0].barcode}</span>
-                              )}
-                              {p.catalogItemId && <span className="text-xs text-blue-400" title="Kataloga bağlı">🔗</span>}
-                            </div>
+                            {(p.brand || p.manufacturer) && (
+                              <span className="text-xs text-gray-400">
+                                {[p.brand, p.manufacturer].filter(Boolean).join(' · ')}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -542,19 +759,30 @@ export default function WholesalerProducts() {
                       {/* Kategori */}
                       <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{p.categoryName}</td>
 
-                      {/* Fiyat */}
-                      <td className="px-4 py-3 text-right font-medium text-gray-900 whitespace-nowrap">
-                        ₺{p.price.toFixed(2)}
-                        <span className="text-xs text-gray-400 ml-1">/{p.unit}</span>
+                      {/* Birim konfigürasyonları */}
+                      <td className="px-4 py-3 hidden lg:table-cell">
+                        <div className="flex flex-wrap gap-1">
+                          {p.unitConfigs
+                            .slice()
+                            .sort((a, b) => a.sortOrder - b.sortOrder)
+                            .map(uc => (
+                              <span key={uc.id}
+                                className="text-xs bg-blue-50 text-blue-700 border border-blue-100 rounded px-1.5 py-0.5">
+                                {uc.unitType} ₺{uc.price.toFixed(2)}
+                              </span>
+                            ))}
+                          {p.unitConfigs.length === 0 && (
+                            <span className="text-xs text-gray-300">—</span>
+                          )}
+                        </div>
                       </td>
 
-                      {/* Stok — inline düzenleme */}
+                      {/* Stok — inline edit */}
                       <td className="px-4 py-3 text-center">
                         {editingStock?.id === p.id ? (
                           <div className="flex items-center gap-1 justify-center">
                             <input
-                              type="number"
-                              min="0"
+                              type="number" min="0"
                               value={editingStock.value}
                               onChange={e => setEditingStock(s => s && ({ ...s, value: e.target.value }))}
                               onKeyDown={e => {
@@ -562,24 +790,24 @@ export default function WholesalerProducts() {
                                 if (e.key === 'Escape') setEditingStock(null)
                               }}
                               autoFocus
-                              className="w-16 px-2 py-1 border border-blue-400 rounded text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-16 px-2 py-1 border border-blue-400 rounded text-sm text-center focus:outline-none"
                             />
                             <button onClick={() => updateStock.mutate({ id: p.id, stock: parseInt(editingStock.value) || 0 })}
                               className="text-green-600 text-xs hover:text-green-700">✓</button>
-                            <button onClick={() => setEditingStock(null)} className="text-gray-400 text-xs hover:text-gray-600">✕</button>
+                            <button onClick={() => setEditingStock(null)}
+                              className="text-gray-400 text-xs hover:text-gray-600">✕</button>
                           </div>
                         ) : (
                           <button
                             onClick={() => setEditingStock({ id: p.id, value: p.stock.toString() })}
-                            className="hover:bg-gray-100 rounded px-1"
-                            title="Stoku düzenle"
+                            className="hover:bg-gray-100 rounded px-1" title="Stoku düzenle"
                           >
                             <StockBadge stock={p.stock} />
                           </button>
                         )}
                       </td>
 
-                      {/* Min sipariş */}
+                      {/* Min */}
                       <td className="px-4 py-3 text-right text-gray-400 text-xs hidden sm:table-cell">
                         min {p.minOrderQty}
                       </td>
@@ -601,7 +829,7 @@ export default function WholesalerProducts() {
                       {/* Düzenle */}
                       <td className="px-4 py-3 text-right">
                         <button
-                          onClick={() => openEdit(p)}
+                          onClick={() => setModal({ open: true, product: p })}
                           className="px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
                         >
                           Düzenle
@@ -616,13 +844,13 @@ export default function WholesalerProducts() {
         </div>
       )}
 
-      {/* Slide-over */}
-      {slideOver.open && (
-        <SlideOver
-          product={slideOver.product}
+      {/* Modal */}
+      {modal.open && (
+        <ProductModal
+          product={modal.product}
           categories={categories}
           profileId={profileId ?? ''}
-          onClose={closeSlide}
+          onClose={() => setModal({ open: false, product: null })}
         />
       )}
     </Layout>
