@@ -2,6 +2,7 @@ namespace WholesaleApi.Entities;
 
 public enum OrderStatus { Pending, Confirmed, Rejected, Delivered, Cancelled }
 
+[Auditable]
 public class Order
 {
     public Guid Id { get; set; } = Guid.NewGuid();

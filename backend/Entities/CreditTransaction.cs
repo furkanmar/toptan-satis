@@ -7,6 +7,7 @@ public enum CreditTransactionType
     Payment,      // Ödeme yapıldı
 }
 
+[Auditable]
 public class CreditTransaction
 {
     public Guid Id { get; set; } = Guid.NewGuid();

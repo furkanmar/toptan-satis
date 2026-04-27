@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WholesaleApi.Data;
+using WholesaleApi.DTOs;
 
 namespace WholesaleApi.Controllers;
 
@@ -95,6 +96,53 @@ public class AdminController(AppDbContext db) : ControllerBase
         db.StoreWholesalers.Remove(rel);
         await db.SaveChangesAsync();
         return Ok(new { message = "İlişki silindi" });
+    }
+    // ─── Audit log ───────────────────────────────────────────────────────────────
+
+    [HttpGet("audit-logs")]
+    public async Task<AuditLogPageDto> GetAuditLogs(
+        [FromQuery] Guid? userId,
+        [FromQuery] string? entityType,
+        [FromQuery] string? entityId,
+        [FromQuery] string? action,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50)
+    {
+        pageSize = Math.Clamp(pageSize, 1, 200);
+        page = Math.Max(1, page);
+
+        var q = db.AuditLogs.AsQueryable();
+
+        if (userId.HasValue)    q = q.Where(a => a.UserId == userId);
+        if (!string.IsNullOrEmpty(entityType)) q = q.Where(a => a.EntityType == entityType);
+        if (!string.IsNullOrEmpty(entityId))   q = q.Where(a => a.EntityId == entityId);
+        if (!string.IsNullOrEmpty(action))     q = q.Where(a => a.Action == action);
+        if (from.HasValue) q = q.Where(a => a.CreatedAt >= from.Value);
+        if (to.HasValue)   q = q.Where(a => a.CreatedAt <= to.Value);
+
+        var total = await q.CountAsync();
+
+        var items = await q
+            .OrderByDescending(a => a.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(a => new AuditLogDto
+            {
+                Id = a.Id,
+                UserId = a.UserId,
+                UserRole = a.UserRole,
+                Action = a.Action,
+                EntityType = a.EntityType,
+                EntityId = a.EntityId,
+                Changes = a.Changes,
+                IpAddress = a.IpAddress,
+                CreatedAt = a.CreatedAt,
+            })
+            .ToListAsync();
+
+        return new AuditLogPageDto { Items = items, Total = total, Page = page, PageSize = pageSize };
     }
 }
 

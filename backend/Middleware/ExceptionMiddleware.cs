@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using WholesaleApi.Exceptions;
 
 namespace WholesaleApi.Middleware;
 
@@ -16,6 +17,10 @@ public class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddlewa
         {
             await WriteError(context, HttpStatusCode.Conflict,
                 "Eş zamanlı güncelleme çakışması — lütfen isteği tekrarlayın");
+        }
+        catch (ForbiddenException ex)
+        {
+            await WriteError(context, HttpStatusCode.Forbidden, ex.Message);
         }
         catch (UnauthorizedAccessException ex)
         {

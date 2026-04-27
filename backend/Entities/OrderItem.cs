@@ -1,5 +1,6 @@
 namespace WholesaleApi.Entities;
 
+[Auditable]
 public class OrderItem
 {
     public Guid Id { get; set; } = Guid.NewGuid();

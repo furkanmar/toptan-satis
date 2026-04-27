@@ -2,6 +2,7 @@ namespace WholesaleApi.Entities;
 
 public enum UserRole { Admin, Wholesaler, Store }
 
+[Auditable]
 public class User
 {
     public Guid Id { get; set; } = Guid.NewGuid();

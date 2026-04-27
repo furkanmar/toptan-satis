@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using WholesaleApi.Data;
 using WholesaleApi.DTOs;
@@ -5,7 +6,11 @@ using WholesaleApi.Entities;
 
 namespace WholesaleApi.Services;
 
-public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpContextAccessor http)
+public class ProductService(
+    AppDbContext db,
+    IWebHostEnvironment env,
+    IHttpContextAccessor http,
+    IAuditService auditService)
 {
     // ─── Queries ──────────────────────────────────────────────────────────────
 
@@ -75,6 +80,9 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
         var product = await db.Products.FirstOrDefaultAsync(p => p.Id == id && p.WholesalerId == wholesalerId)
             ?? throw new KeyNotFoundException("Ürün bulunamadı");
 
+        var oldPrice = product.Price;
+        var oldVatRate = product.VatRate;
+
         if (dto.Name != null) product.Name = dto.Name;
         if (dto.Description != null) product.Description = dto.Description;
         if (dto.Brand != null) product.Brand = dto.Brand;
@@ -85,6 +93,19 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
         if (dto.IsActive.HasValue) product.IsActive = dto.IsActive.Value;
         if (dto.VatRate.HasValue) product.VatRate = dto.VatRate.Value;
         if (dto.CategoryId.HasValue) product.CategoryId = dto.CategoryId.Value;
+
+        // Fiyat değişimi — explicit audit (interceptor'ın generic kaydına ek olarak)
+        if (dto.Price.HasValue && dto.Price.Value != oldPrice)
+        {
+            auditService.LogAction(
+                CurrentUserId,
+                CurrentRole,
+                "ProductPriceUpdate",
+                "Product",
+                id.ToString(),
+                new { OldPrice = oldPrice, NewPrice = dto.Price.Value, OldVatRate = oldVatRate, NewVatRate = product.VatRate },
+                CurrentIp);
+        }
 
         await db.SaveChangesAsync();
         return await GetByIdAsync(id);
@@ -254,6 +275,15 @@ public class ProductService(AppDbContext db, IWebHostEnvironment env, IHttpConte
             .FirstOrDefaultAsync(p => p.Id == id);
 
     private string BaseUrl => $"{http.HttpContext!.Request.Scheme}://{http.HttpContext.Request.Host}";
+
+    private Guid? CurrentUserId =>
+        Guid.TryParse(http.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
+
+    private string CurrentRole =>
+        http.HttpContext?.User.FindFirstValue(ClaimTypes.Role) ?? "System";
+
+    private string? CurrentIp =>
+        http.HttpContext?.Connection.RemoteIpAddress?.ToString();
 
     private ProductDto MapDto(Product p) => new()
     {

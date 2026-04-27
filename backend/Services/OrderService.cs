@@ -1,13 +1,17 @@
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using WholesaleApi.Data;
 using WholesaleApi.DTOs;
 using WholesaleApi.Entities;
+using WholesaleApi.Exceptions;
 
 namespace WholesaleApi.Services;
 
 public class OrderService(
     AppDbContext db,
     IStockService stockService,
+    IAuditService auditService,
+    IHttpContextAccessor httpContextAccessor,
     ILogger<OrderService> logger)
 {
     public async Task<OrderDto> CreateAsync(Guid storeId, CreateOrderDto dto)
@@ -24,6 +28,16 @@ public class OrderService(
         var distinctWholesalers = products.Select(p => p.WholesalerId).Distinct().ToList();
         if (distinctWholesalers.Count > 1)
             throw new InvalidOperationException("Sipariş tek toptancıdan olmalı");
+
+        // StoreWholesaler ilişki kontrolü
+        var targetWholesalerId = distinctWholesalers[0];
+        var relation = await db.StoreWholesalers
+            .FirstOrDefaultAsync(sw => sw.StoreId == storeId && sw.WholesalerId == targetWholesalerId);
+
+        if (relation is null)
+            throw new ForbiddenException("Bu toptancıya sipariş verme yetkiniz yok");
+        if (!relation.IsActive)
+            throw new ForbiddenException("Bu toptancıyla ilişkiniz askıya alınmış");
 
         var items = new List<OrderItem>();
         foreach (var i in dto.Items)
@@ -50,7 +64,7 @@ public class OrderService(
         var order = new Order
         {
             StoreId = storeId,
-            WholesalerId = distinctWholesalers[0],
+            WholesalerId = targetWholesalerId,
             Note = dto.Note,
             Items = items,
             TotalAmount = items.Sum(i => i.Quantity * i.UnitPrice)
@@ -82,7 +96,6 @@ public class OrderService(
             catch (DbUpdateConcurrencyException ex)
             {
                 lastConcurrencyEx = ex;
-                // ChangeTracker temizle — sonraki deneme taze okuyacak
                 db.ChangeTracker.Clear();
                 logger.LogWarning(
                     "Concurrency çakışması (deneme {Attempt}/3): Order={OrderId}",
@@ -110,7 +123,6 @@ public class OrderService(
             throw new InvalidOperationException(
                 $"Sipariş '{order.Status}' durumundayken onaylanamaz");
 
-        // Ürünleri yükle — EF identity map sayesinde StockService aynı instance'ı kullanır
         var productIds = order.Items.Select(i => i.ProductId).ToList();
         var products = await db.Products
             .Where(p => productIds.Contains(p.Id))
@@ -159,6 +171,15 @@ public class OrderService(
                 OrderId = order.Id
             });
         }
+
+        auditService.LogAction(
+            userId,
+            CurrentRole,
+            "OrderConfirmed",
+            "Order",
+            orderId.ToString(),
+            new { dto.ForceConfirm, dto.DueDate, dto.CreateCreditEntry },
+            CurrentIp);
 
         await db.SaveChangesAsync();
         await tx.CommitAsync();
@@ -233,12 +254,14 @@ public class OrderService(
             .FirstOrDefaultAsync(o => o.Id == orderId && o.WholesalerId == wholesalerId)
             ?? throw new KeyNotFoundException("Sipariş bulunamadı");
 
+        var oldStatus = order.Status;
+
         if (!order.Status.CanTransitionTo(newStatus))
             throw new InvalidOperationException(
                 $"'{order.Status}' → '{newStatus}' geçişi geçersiz");
 
         // Onaylanmış → İptal: stok iade
-        if (order.Status == OrderStatus.Confirmed && newStatus == OrderStatus.Cancelled)
+        if (oldStatus == OrderStatus.Confirmed && newStatus == OrderStatus.Cancelled)
         {
             foreach (var item in order.Items)
             {
@@ -250,6 +273,23 @@ public class OrderService(
 
         order.Status = newStatus;
         order.UpdatedAt = DateTime.UtcNow;
+
+        var actionName = newStatus switch
+        {
+            OrderStatus.Cancelled => "OrderCancelled",
+            OrderStatus.Rejected  => "OrderRejected",
+            OrderStatus.Delivered => "OrderDelivered",
+            _                     => $"OrderStatus{newStatus}"
+        };
+
+        auditService.LogAction(
+            userId,
+            CurrentRole,
+            actionName,
+            "Order",
+            orderId.ToString(),
+            new { From = oldStatus.ToString(), To = newStatus.ToString() },
+            CurrentIp);
 
         await db.SaveChangesAsync();
         await tx.CommitAsync();
@@ -272,6 +312,14 @@ public class OrderService(
             ?? throw new KeyNotFoundException("Sipariş bulunamadı");
         return ToDto(order);
     }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    private string CurrentRole =>
+        httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.Role) ?? "System";
+
+    private string? CurrentIp =>
+        httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
 
     private IQueryable<Order> BuildQuery() =>
         db.Orders

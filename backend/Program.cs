@@ -26,12 +26,18 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog();
 
 // ─── Services ───────────────────────────────────────────────────────────────
-builder.Services.AddDbContext<AppDbContext>(opt =>
-    opt.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+
+// AuditInterceptor singleton — IHttpContextAccessor'ı AsyncLocal ile kullanır
+builder.Services.AddSingleton<AuditInterceptor>();
+
+builder.Services.AddDbContext<AppDbContext>((sp, opt) =>
+    opt.UseNpgsql(builder.Configuration.GetConnectionString("Default"))
+       .AddInterceptors(sp.GetRequiredService<AuditInterceptor>()));
 
 // JWT
 var jwtSecret = builder.Configuration["Jwt:Secret"]
-    ?? throw new InvalidOperationException("Jwt:Secret missing");
+    ?? throw new InvalidOperationException(
+        "Jwt:Secret eksik. Ortam değişkeni Jwt__Secret ayarlanmış olmalı.");
 var key = Encoding.UTF8.GetBytes(jwtSecret);
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -56,6 +62,7 @@ builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<IStockService, StockService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<OrderService>();
 
 // CORS — React dev + production

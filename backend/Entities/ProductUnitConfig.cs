@@ -4,6 +4,7 @@ namespace WholesaleApi.Entities;
 /// Ürünün bir ambalaj/birim tipini temsil eder.
 /// Örnek: Coca-Cola → Adet (1 kutu, 18.50₺), Paket (6 kutu, 105₺), Koli (24 kutu, 400₺)
 /// </summary>
+[Auditable]
 public class ProductUnitConfig
 {
     public Guid Id { get; set; } = Guid.NewGuid();

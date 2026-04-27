@@ -1,5 +1,6 @@
 namespace WholesaleApi.Entities;
 
+[Auditable]
 public class StoreWholesaler
 {
     public Guid StoreId { get; set; }

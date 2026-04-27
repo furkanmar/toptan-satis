@@ -18,6 +18,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<StoreWholesaler> StoreWholesalers => Set<StoreWholesaler>();
     public DbSet<CreditTransaction> CreditTransactions => Set<CreditTransaction>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -110,16 +111,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasOne(sm => sm.Product)
             .WithMany()
             .HasForeignKey(sm => sm.ProductId)
-            .OnDelete(DeleteBehavior.Restrict); // ürün silindi diye ledger silinmez
+            .OnDelete(DeleteBehavior.Restrict);
 
-        // Index: ProductId + CreatedAt (hareket geçmişi sorgusu)
         mb.Entity<StockMovement>()
             .HasIndex(sm => new { sm.ProductId, sm.CreatedAt })
             .HasDatabaseName("IX_StockMovements_ProductId_CreatedAt");
 
-        // Index: OrderId (siparişe ait hareketler)
         mb.Entity<StockMovement>()
             .HasIndex(sm => sm.OrderId)
             .HasDatabaseName("IX_StockMovements_OrderId");
+
+        // AuditLog — append-only denetim defteri
+        mb.Entity<AuditLog>()
+            .Property(a => a.Changes)
+            .HasColumnType("jsonb");
+
+        mb.Entity<AuditLog>()
+            .HasIndex(a => new { a.UserId, a.CreatedAt })
+            .HasDatabaseName("IX_AuditLogs_UserId_CreatedAt");
+
+        mb.Entity<AuditLog>()
+            .HasIndex(a => new { a.EntityType, a.EntityId })
+            .HasDatabaseName("IX_AuditLogs_EntityType_EntityId");
     }
 }
