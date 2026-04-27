@@ -5,7 +5,10 @@ using WholesaleApi.Entities;
 
 namespace WholesaleApi.Services;
 
-public class OrderService(AppDbContext db)
+public class OrderService(
+    AppDbContext db,
+    IStockService stockService,
+    ILogger<OrderService> logger)
 {
     public async Task<OrderDto> CreateAsync(Guid storeId, CreateOrderDto dto)
     {
@@ -31,7 +34,6 @@ public class OrderService(AppDbContext db)
             if (i.UnitConfigId.HasValue)
                 unitConfig = p.UnitConfigs.FirstOrDefault(u => u.Id == i.UnitConfigId.Value);
 
-            // Fallback: ilk unit config ya da base price
             unitConfig ??= p.UnitConfigs.OrderBy(u => u.SortOrder).FirstOrDefault();
 
             items.Add(new OrderItem
@@ -59,25 +61,84 @@ public class OrderService(AppDbContext db)
         return await GetByIdAsync(order.Id);
     }
 
-    public async Task<OrderDto> ConfirmAsync(Guid orderId, Guid wholesalerId, ConfirmOrderDto dto)
+    /// <summary>
+    /// Siparişi onayla. xmin concurrency token ile optimistic lock;
+    /// çakışmada max 3 deneme yapar, başarısız olursa 409 fırlatır.
+    /// </summary>
+    public async Task<OrderDto> ConfirmAsync(
+        Guid orderId,
+        Guid wholesalerId,
+        Guid userId,
+        ConfirmOrderDto dto)
     {
+        DbUpdateConcurrencyException? lastConcurrencyEx = null;
+
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                return await ExecuteConfirmAsync(orderId, wholesalerId, userId, dto);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                lastConcurrencyEx = ex;
+                // ChangeTracker temizle — sonraki deneme taze okuyacak
+                db.ChangeTracker.Clear();
+                logger.LogWarning(
+                    "Concurrency çakışması (deneme {Attempt}/3): Order={OrderId}",
+                    attempt + 1, orderId);
+            }
+        }
+
+        throw lastConcurrencyEx!; // Middleware → 409
+    }
+
+    private async Task<OrderDto> ExecuteConfirmAsync(
+        Guid orderId,
+        Guid wholesalerId,
+        Guid userId,
+        ConfirmOrderDto dto)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync();
+
         var order = await db.Orders
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == orderId && o.WholesalerId == wholesalerId)
             ?? throw new KeyNotFoundException("Sipariş bulunamadı");
 
-        if (order.Status != OrderStatus.Pending)
-            throw new InvalidOperationException("Sadece bekleyen siparişler onaylanabilir");
+        if (!order.Status.CanTransitionTo(OrderStatus.Confirmed))
+            throw new InvalidOperationException(
+                $"Sipariş '{order.Status}' durumundayken onaylanamaz");
 
+        // Ürünleri yükle — EF identity map sayesinde StockService aynı instance'ı kullanır
         var productIds = order.Items.Select(i => i.ProductId).ToList();
-        var products = await db.Products.Where(p => productIds.Contains(p.Id)).ToListAsync();
+        var products = await db.Products
+            .Where(p => productIds.Contains(p.Id))
+            .ToListAsync();
+
         foreach (var item in order.Items)
         {
             var product = products.First(p => p.Id == item.ProductId);
             var totalUnits = item.Quantity * item.ContentQty;
-            if (product.Stock < totalUnits && !dto.ForceConfirm)
-                throw new InvalidOperationException($"'{product.Name}' için yeterli stok yok (mevcut: {product.Stock})");
-            product.Stock -= totalUnits;
+            bool goingNegative = product.Stock - totalUnits < 0;
+
+            if (goingNegative && !dto.ForceConfirm)
+                throw new InvalidOperationException(
+                    $"'{product.Name}' için yeterli stok yok (mevcut: {product.Stock})");
+
+            var movType = goingNegative
+                ? MovementType.ForceConfirmNegative
+                : MovementType.OrderConfirm;
+
+            if (goingNegative)
+                logger.LogWarning(
+                    "ForceConfirm negatif stok: Order={OrderId} Product={ProductId} " +
+                    "ProductName={ProductName} CurrentStock={Stock} Deduct={Deduct} WillBe={WillBe}",
+                    orderId, item.ProductId, product.Name,
+                    product.Stock, totalUnits, product.Stock - totalUnits);
+
+            await stockService.ApplyMovementAsync(
+                item.ProductId, -totalUnits, movType, orderId, userId);
         }
 
         order.Status = OrderStatus.Confirmed;
@@ -100,6 +161,8 @@ public class OrderService(AppDbContext db)
         }
 
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
+
         return await GetByIdAsync(orderId);
     }
 
@@ -153,30 +216,44 @@ public class OrderService(AppDbContext db)
         return await GetByIdAsync(orderId);
     }
 
-    public async Task<OrderDto> UpdateStatusAsync(Guid orderId, Guid wholesalerId, OrderStatus newStatus)
+    /// <summary>
+    /// Sipariş durumunu güncelle. State machine ihlalinde 400 fırlatır.
+    /// Confirmed → Cancelled: stok geri yükler ve ledger kaydı oluşturur.
+    /// </summary>
+    public async Task<OrderDto> UpdateStatusAsync(
+        Guid orderId,
+        Guid wholesalerId,
+        Guid userId,
+        OrderStatus newStatus)
     {
+        await using var tx = await db.Database.BeginTransactionAsync();
+
         var order = await db.Orders
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == orderId && o.WholesalerId == wholesalerId)
             ?? throw new KeyNotFoundException("Sipariş bulunamadı");
 
-        if (newStatus == OrderStatus.Confirmed && order.Status == OrderStatus.Pending)
+        if (!order.Status.CanTransitionTo(newStatus))
+            throw new InvalidOperationException(
+                $"'{order.Status}' → '{newStatus}' geçişi geçersiz");
+
+        // Onaylanmış → İptal: stok iade
+        if (order.Status == OrderStatus.Confirmed && newStatus == OrderStatus.Cancelled)
         {
-            var productIds = order.Items.Select(i => i.ProductId).ToList();
-            var products = await db.Products.Where(p => productIds.Contains(p.Id)).ToListAsync();
             foreach (var item in order.Items)
             {
-                var product = products.First(p => p.Id == item.ProductId);
                 var totalUnits = item.Quantity * item.ContentQty;
-                if (product.Stock < totalUnits)
-                    throw new InvalidOperationException($"'{product.Name}' için yeterli stok yok (mevcut: {product.Stock})");
-                product.Stock -= totalUnits;
+                await stockService.ApplyMovementAsync(
+                    item.ProductId, +totalUnits, MovementType.OrderCancel, orderId, userId);
             }
         }
 
         order.Status = newStatus;
         order.UpdatedAt = DateTime.UtcNow;
+
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
+
         return await GetByIdAsync(orderId);
     }
 

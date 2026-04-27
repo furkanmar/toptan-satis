@@ -46,8 +46,9 @@ public class OrdersController(OrderService orderService, AppDbContext db) : Cont
     [Authorize(Roles = "Wholesaler")]
     public async Task<OrderDto> Confirm(Guid id, [FromBody] ConfirmOrderDto dto)
     {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var wholesalerId = await GetWholesalerId();
-        return await orderService.ConfirmAsync(id, wholesalerId, dto);
+        return await orderService.ConfirmAsync(id, wholesalerId, userId, dto);
     }
 
     // Toptancı — sipariş içeriğini düzenle
@@ -64,10 +65,11 @@ public class OrdersController(OrderService orderService, AppDbContext db) : Cont
     [Authorize(Roles = "Wholesaler")]
     public async Task<OrderDto> UpdateStatus(Guid id, [FromBody] UpdateOrderStatusDto dto)
     {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var wholesalerId = await GetWholesalerId();
         if (!Enum.TryParse<OrderStatus>(dto.Status, out var status))
             throw new InvalidOperationException("Geçersiz sipariş durumu");
-        return await orderService.UpdateStatusAsync(id, wholesalerId, status);
+        return await orderService.UpdateStatusAsync(id, wholesalerId, userId, status);
     }
 
     // Admin — tüm siparişler

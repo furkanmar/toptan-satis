@@ -17,6 +17,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<StoreWholesaler> StoreWholesalers => Set<StoreWholesaler>();
     public DbSet<CreditTransaction> CreditTransactions => Set<CreditTransaction>();
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -38,6 +39,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         // Product
         mb.Entity<Product>().Property(p => p.Price).HasPrecision(18, 2);
+
+        // Optimistic concurrency — PostgreSQL xmin system column (kolon oluşturmaz)
+        mb.Entity<Product>().UseXminAsConcurrencyToken();
 
         // ProductUnitConfig → Product
         mb.Entity<ProductUnitConfig>().Property(u => u.Price).HasPrecision(18, 2);
@@ -91,5 +95,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .WithMany(o => o.CreditTransactions)
             .HasForeignKey(c => c.OrderId)
             .IsRequired(false);
+
+        // StockMovement — append-only ledger
+        mb.Entity<StockMovement>()
+            .Property(sm => sm.MovementType)
+            .HasConversion<string>();
+
+        mb.Entity<StockMovement>()
+            .HasOne(sm => sm.Product)
+            .WithMany()
+            .HasForeignKey(sm => sm.ProductId)
+            .OnDelete(DeleteBehavior.Restrict); // ürün silindi diye ledger silinmez
+
+        // Index: ProductId + CreatedAt (hareket geçmişi sorgusu)
+        mb.Entity<StockMovement>()
+            .HasIndex(sm => new { sm.ProductId, sm.CreatedAt })
+            .HasDatabaseName("IX_StockMovements_ProductId_CreatedAt");
+
+        // Index: OrderId (siparişe ait hareketler)
+        mb.Entity<StockMovement>()
+            .HasIndex(sm => sm.OrderId)
+            .HasDatabaseName("IX_StockMovements_OrderId");
     }
 }

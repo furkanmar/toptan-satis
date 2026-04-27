@@ -55,6 +55,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ProductService>();
+builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<OrderService>();
 
 // CORS — React dev + production

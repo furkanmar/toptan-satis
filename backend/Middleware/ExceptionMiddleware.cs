@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 
 namespace WholesaleApi.Middleware;
 
@@ -10,6 +11,11 @@ public class ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddlewa
         try
         {
             await next(context);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await WriteError(context, HttpStatusCode.Conflict,
+                "Eş zamanlı güncelleme çakışması — lütfen isteği tekrarlayın");
         }
         catch (UnauthorizedAccessException ex)
         {
