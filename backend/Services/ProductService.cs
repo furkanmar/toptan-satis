@@ -1,8 +1,12 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Webp;
+using SixLabors.ImageSharp.Processing;
 using WholesaleApi.Data;
 using WholesaleApi.DTOs;
 using WholesaleApi.Entities;
+using WholesaleApi.Services.Storage;
 
 namespace WholesaleApi.Services;
 
@@ -10,9 +14,14 @@ public class ProductService(
     AppDbContext db,
     IWebHostEnvironment env,
     IHttpContextAccessor http,
-    IAuditService auditService)
+    IAuditService auditService,
+    IFileStorageService fileStorage,
+    LocalFileStorage localStorage)
 {
-    // ─── Queries ──────────────────────────────────────────────────────────────
+    private const int MaxImageSize = 2000;
+    private const int WebpQuality = 85;
+
+    // Queries
 
     public async Task<List<ProductDto>> GetAllAsync(Guid? wholesalerId = null, Guid? categoryId = null, bool includeInactive = false)
     {
@@ -29,17 +38,17 @@ public class ProductService(
         if (categoryId.HasValue) q = q.Where(p => p.CategoryId == categoryId);
 
         var list = await q.OrderBy(p => p.Name).ToListAsync();
-        return list.Select(p => MapDto(p)).ToList();
+        var tasks = list.Select(p => MapDtoAsync(p));
+        return (await Task.WhenAll(tasks)).ToList();
     }
 
     public async Task<ProductDto> GetByIdAsync(Guid id)
     {
-        var p = await LoadProduct(id)
-            ?? throw new KeyNotFoundException("Ürün bulunamadı");
-        return MapDto(p);
+        var p = await LoadProduct(id) ?? throw new KeyNotFoundException("Urun bulunamadi");
+        return await MapDtoAsync(p);
     }
 
-    // ─── CRUD ─────────────────────────────────────────────────────────────────
+    // CRUD
 
     public async Task<ProductDto> CreateAsync(Guid wholesalerId, CreateProductDto dto)
     {
@@ -60,15 +69,12 @@ public class ProductService(
         db.Products.Add(product);
         await db.SaveChangesAsync();
 
-        // Unit configs
         foreach (var uc in dto.UnitConfigs)
             await AddUnitConfigInternalAsync(product.Id, uc);
 
-        // Eğer en az bir unit config varsa, Price'ı en küçük birimden senkronize et
         if (dto.UnitConfigs.Count > 0)
         {
-            var minPrice = dto.UnitConfigs.Min(u => u.Price);
-            product.Price = minPrice;
+            product.Price = dto.UnitConfigs.Min(u => u.Price);
             await db.SaveChangesAsync();
         }
 
@@ -78,7 +84,7 @@ public class ProductService(
     public async Task<ProductDto> UpdateAsync(Guid id, Guid wholesalerId, UpdateProductDto dto)
     {
         var product = await db.Products.FirstOrDefaultAsync(p => p.Id == id && p.WholesalerId == wholesalerId)
-            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+            ?? throw new KeyNotFoundException("Urun bulunamadi");
 
         var oldPrice = product.Price;
         var oldVatRate = product.VatRate;
@@ -94,15 +100,10 @@ public class ProductService(
         if (dto.VatRate.HasValue) product.VatRate = dto.VatRate.Value;
         if (dto.CategoryId.HasValue) product.CategoryId = dto.CategoryId.Value;
 
-        // Fiyat değişimi — explicit audit (interceptor'ın generic kaydına ek olarak)
         if (dto.Price.HasValue && dto.Price.Value != oldPrice)
         {
             auditService.LogAction(
-                CurrentUserId,
-                CurrentRole,
-                "ProductPriceUpdate",
-                "Product",
-                id.ToString(),
+                CurrentUserId, CurrentRole, "ProductPriceUpdate", "Product", id.ToString(),
                 new { OldPrice = oldPrice, NewPrice = dto.Price.Value, OldVatRate = oldVatRate, NewVatRate = product.VatRate },
                 CurrentIp);
         }
@@ -111,12 +112,12 @@ public class ProductService(
         return await GetByIdAsync(id);
     }
 
-    // ─── Unit Config yönetimi ─────────────────────────────────────────────────
+    // Unit Config
 
     public async Task<ProductUnitConfigDto> AddUnitConfigAsync(Guid productId, Guid wholesalerId, CreateUnitConfigDto dto)
     {
         _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
-            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+            ?? throw new KeyNotFoundException("Urun bulunamadi");
 
         var config = await AddUnitConfigInternalAsync(productId, dto);
         return MapUnitConfigDto(config);
@@ -125,12 +126,12 @@ public class ProductService(
     public async Task<ProductUnitConfigDto> UpdateUnitConfigAsync(Guid productId, Guid configId, Guid wholesalerId, UpdateUnitConfigDto dto)
     {
         _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
-            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+            ?? throw new KeyNotFoundException("Urun bulunamadi");
 
         var config = await db.ProductUnitConfigs
             .Include(u => u.Barcodes)
             .FirstOrDefaultAsync(u => u.Id == configId && u.ProductId == productId)
-            ?? throw new KeyNotFoundException("Birim tipi bulunamadı");
+            ?? throw new KeyNotFoundException("Birim tipi bulunamadi");
 
         if (dto.UnitType != null) config.UnitType = dto.UnitType;
         if (dto.ContentQty.HasValue) config.ContentQty = dto.ContentQty.Value;
@@ -144,31 +145,26 @@ public class ProductService(
     public async Task DeleteUnitConfigAsync(Guid productId, Guid configId, Guid wholesalerId)
     {
         _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
-            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+            ?? throw new KeyNotFoundException("Urun bulunamadi");
 
         var config = await db.ProductUnitConfigs.FirstOrDefaultAsync(u => u.Id == configId && u.ProductId == productId)
-            ?? throw new KeyNotFoundException("Birim tipi bulunamadı");
+            ?? throw new KeyNotFoundException("Birim tipi bulunamadi");
 
         db.ProductUnitConfigs.Remove(config);
         await db.SaveChangesAsync();
     }
 
-    // ─── Barcode yönetimi ─────────────────────────────────────────────────────
+    // Barcode
 
     public async Task<ProductBarcodeDto> AddBarcodeAsync(Guid productId, Guid configId, Guid wholesalerId, AddProductBarcodeDto dto)
     {
         _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
-            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+            ?? throw new KeyNotFoundException("Urun bulunamadi");
 
         _ = await db.ProductUnitConfigs.FirstOrDefaultAsync(u => u.Id == configId && u.ProductId == productId)
-            ?? throw new KeyNotFoundException("Birim tipi bulunamadı");
+            ?? throw new KeyNotFoundException("Birim tipi bulunamadi");
 
-        var barcode = new ProductBarcode
-        {
-            UnitConfigId = configId,
-            Barcode = dto.Barcode.Trim(),
-            Note = dto.Note
-        };
+        var barcode = new ProductBarcode { UnitConfigId = configId, Barcode = dto.Barcode.Trim(), Note = dto.Note };
         db.ProductBarcodes.Add(barcode);
         await db.SaveChangesAsync();
 
@@ -178,48 +174,67 @@ public class ProductService(
     public async Task DeleteBarcodeAsync(Guid productId, Guid configId, Guid barcodeId, Guid wholesalerId)
     {
         _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
-            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+            ?? throw new KeyNotFoundException("Urun bulunamadi");
 
         var barcode = await db.ProductBarcodes
             .FirstOrDefaultAsync(b => b.Id == barcodeId && b.UnitConfigId == configId)
-            ?? throw new KeyNotFoundException("Barkod bulunamadı");
+            ?? throw new KeyNotFoundException("Barkod bulunamadi");
 
         db.ProductBarcodes.Remove(barcode);
         await db.SaveChangesAsync();
     }
 
-    // ─── Image yönetimi ───────────────────────────────────────────────────────
+    // Image
 
     public async Task UploadImageAsync(Guid productId, Guid wholesalerId, IFormFile file)
     {
         _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
-            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+            ?? throw new KeyNotFoundException("Urun bulunamadi");
 
         var ext = Path.GetExtension(file.FileName).ToLower();
         if (!new[] { ".jpg", ".jpeg", ".png", ".webp" }.Contains(ext))
-            throw new InvalidOperationException("Desteklenmeyen dosya formatı");
+            throw new InvalidOperationException("Desteklenmeyen dosya formati");
 
-        var fileName = $"{Guid.NewGuid()}{ext}";
-        var uploadPath = Path.Combine(env.WebRootPath, "uploads", fileName);
-        await using var stream = File.Create(uploadPath);
-        await file.CopyToAsync(stream);
+        // ImageSharp: resize + WebP
+        await using var inputStream = file.OpenReadStream();
+        using var image = await Image.LoadAsync(inputStream);
+
+        if (image.Width > MaxImageSize || image.Height > MaxImageSize)
+        {
+            image.Mutate(x => x.Resize(new ResizeOptions
+            {
+                Mode = ResizeMode.Max,
+                Size = new Size(MaxImageSize, MaxImageSize)
+            }));
+        }
+
+        var ms = new MemoryStream();
+        await image.SaveAsync(ms, new WebpEncoder { Quality = WebpQuality });
+        ms.Position = 0;
+
+        // R2'ye yukle
+        var storageKey = $"products/{productId}/{Guid.NewGuid()}.webp";
+        await fileStorage.UploadAsync(ms, storageKey, "image/webp");
 
         var isFirst = !await db.ProductImages.AnyAsync(i => i.ProductId == productId);
-        db.ProductImages.Add(new ProductImage { ProductId = productId, FilePath = $"uploads/{fileName}", IsMain = isFirst });
+        db.ProductImages.Add(new ProductImage { ProductId = productId, FilePath = storageKey, IsMain = isFirst });
         await db.SaveChangesAsync();
     }
 
     public async Task DeleteImageAsync(Guid productId, Guid imageId, Guid wholesalerId)
     {
         _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
-            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+            ?? throw new KeyNotFoundException("Urun bulunamadi");
 
         var image = await db.ProductImages.FirstOrDefaultAsync(i => i.Id == imageId && i.ProductId == productId)
-            ?? throw new KeyNotFoundException("Görsel bulunamadı");
+            ?? throw new KeyNotFoundException("Gorsel bulunamadi");
 
         var wasMain = image.IsMain;
-        var filePath = Path.Combine(env.WebRootPath, image.FilePath);
-        if (File.Exists(filePath)) File.Delete(filePath);
+
+        if (fileStorage.Owns(image.FilePath))
+            await fileStorage.DeleteAsync(image.FilePath);
+        else if (localStorage.Owns(image.FilePath))
+            await localStorage.DeleteAsync(image.FilePath);
 
         db.ProductImages.Remove(image);
         await db.SaveChangesAsync();
@@ -234,14 +249,14 @@ public class ProductService(
     public async Task SetMainImageAsync(Guid productId, Guid imageId, Guid wholesalerId)
     {
         _ = await db.Products.FirstOrDefaultAsync(p => p.Id == productId && p.WholesalerId == wholesalerId)
-            ?? throw new KeyNotFoundException("Ürün bulunamadı");
+            ?? throw new KeyNotFoundException("Urun bulunamadi");
 
         var images = await db.ProductImages.Where(i => i.ProductId == productId).ToListAsync();
         foreach (var img in images) img.IsMain = img.Id == imageId;
         await db.SaveChangesAsync();
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────────────
+    // Helpers
 
     private async Task<ProductUnitConfig> AddUnitConfigInternalAsync(Guid productId, CreateUnitConfigDto dto)
     {
@@ -260,7 +275,6 @@ public class ProductService(
             db.ProductBarcodes.Add(new ProductBarcode { UnitConfigId = config.Id, Barcode = b.Trim() });
 
         await db.SaveChangesAsync();
-
         config.Barcodes = await db.ProductBarcodes.Where(b => b.UnitConfigId == config.Id).ToListAsync();
         return config;
     }
@@ -285,31 +299,41 @@ public class ProductService(
     private string? CurrentIp =>
         http.HttpContext?.Connection.RemoteIpAddress?.ToString();
 
-    private ProductDto MapDto(Product p) => new()
+    private async Task<ProductDto> MapDtoAsync(Product p)
     {
-        Id = p.Id,
-        WholesalerId = p.WholesalerId,
-        WholesalerName = p.Wholesaler.CompanyName,
-        CategoryId = p.CategoryId,
-        CategoryName = p.Category.Name,
-        Name = p.Name,
-        Description = p.Description,
-        Brand = p.Brand,
-        Manufacturer = p.Manufacturer,
-        Price = p.Price,
-        VatRate = p.VatRate,
-        MinOrderQty = p.MinOrderQty,
-        Stock = p.Stock,
-        IsActive = p.IsActive,
-        CreatedAt = p.CreatedAt,
-        Images = p.Images.OrderByDescending(i => i.IsMain).Select(i => new ProductImageDto
+        var images = new List<ProductImageDto>();
+        foreach (var i in p.Images.OrderByDescending(x => x.IsMain))
         {
-            Id = i.Id,
-            Url = $"{BaseUrl}/{i.FilePath}",
-            IsMain = i.IsMain
-        }).ToList(),
-        UnitConfigs = p.UnitConfigs.OrderBy(u => u.SortOrder).Select(MapUnitConfigDto).ToList()
-    };
+            string url;
+            if (fileStorage.Owns(i.FilePath))
+                url = await fileStorage.GetPresignedUrlAsync(i.FilePath, TimeSpan.FromHours(1));
+            else
+                url = $"{BaseUrl}/{i.FilePath}";
+
+            images.Add(new ProductImageDto { Id = i.Id, Url = url, IsMain = i.IsMain });
+        }
+
+        return new ProductDto
+        {
+            Id = p.Id,
+            WholesalerId = p.WholesalerId,
+            WholesalerName = p.Wholesaler.CompanyName,
+            CategoryId = p.CategoryId,
+            CategoryName = p.Category.Name,
+            Name = p.Name,
+            Description = p.Description,
+            Brand = p.Brand,
+            Manufacturer = p.Manufacturer,
+            Price = p.Price,
+            VatRate = p.VatRate,
+            MinOrderQty = p.MinOrderQty,
+            Stock = p.Stock,
+            IsActive = p.IsActive,
+            CreatedAt = p.CreatedAt,
+            Images = images,
+            UnitConfigs = p.UnitConfigs.OrderBy(u => u.SortOrder).Select(MapUnitConfigDto).ToList()
+        };
+    }
 
     private static ProductUnitConfigDto MapUnitConfigDto(ProductUnitConfig u) => new()
     {

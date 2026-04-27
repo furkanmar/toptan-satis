@@ -3,13 +3,18 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WholesaleApi.Data;
 using WholesaleApi.DTOs;
+using WholesaleApi.Services.Storage;
 
 namespace WholesaleApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = "Admin")]
-public class AdminController(AppDbContext db) : ControllerBase
+public class AdminController(
+    AppDbContext db,
+    IFileStorageService fileStorage,
+    LocalFileStorage localStorage,
+    IWebHostEnvironment env) : ControllerBase
 {
     // ─── Kullanıcı yönetimi ───────────────────────────────────────────────────
 
@@ -45,7 +50,7 @@ public class AdminController(AppDbContext db) : ControllerBase
         return Ok(new { user.Id, user.IsActive });
     }
 
-    // ─── Mağaza ↔ Toptancı ilişkileri ────────────────────────────────────────
+    // ─── Magaza <-> Toptanci iliskileri ──────────────────────────────────────
 
     [HttpGet("store-wholesalers")]
     public async Task<IActionResult> GetStoreWholesalers()
@@ -75,15 +80,15 @@ public class AdminController(AppDbContext db) : ControllerBase
     {
         var exists = await db.StoreWholesalers
             .AnyAsync(sw => sw.StoreId == dto.StoreId && sw.WholesalerId == dto.WholesalerId);
-        if (exists) return BadRequest(new { error = "Bu ilişki zaten mevcut" });
+        if (exists) return BadRequest(new { error = "Bu iliski zaten mevcut" });
 
         var storeExists = await db.Stores.AnyAsync(s => s.Id == dto.StoreId);
         var wholesalerExists = await db.Wholesalers.AnyAsync(w => w.Id == dto.WholesalerId);
-        if (!storeExists || !wholesalerExists) return NotFound(new { error = "Mağaza veya toptancı bulunamadı" });
+        if (!storeExists || !wholesalerExists) return NotFound(new { error = "Magaza veya toptanci bulunamadi" });
 
         db.StoreWholesalers.Add(new Entities.StoreWholesaler { StoreId = dto.StoreId, WholesalerId = dto.WholesalerId });
         await db.SaveChangesAsync();
-        return Ok(new { message = "İlişki oluşturuldu" });
+        return Ok(new { message = "Iliski olusturuldu" });
     }
 
     [HttpDelete("store-wholesalers/{storeId:guid}/{wholesalerId:guid}")]
@@ -95,9 +100,10 @@ public class AdminController(AppDbContext db) : ControllerBase
 
         db.StoreWholesalers.Remove(rel);
         await db.SaveChangesAsync();
-        return Ok(new { message = "İlişki silindi" });
+        return Ok(new { message = "Iliski silindi" });
     }
-    // ─── Audit log ───────────────────────────────────────────────────────────────
+
+    // ─── Audit log ────────────────────────────────────────────────────────────
 
     [HttpGet("audit-logs")]
     public async Task<AuditLogPageDto> GetAuditLogs(
@@ -115,7 +121,7 @@ public class AdminController(AppDbContext db) : ControllerBase
 
         var q = db.AuditLogs.AsQueryable();
 
-        if (userId.HasValue)    q = q.Where(a => a.UserId == userId);
+        if (userId.HasValue)           q = q.Where(a => a.UserId == userId);
         if (!string.IsNullOrEmpty(entityType)) q = q.Where(a => a.EntityType == entityType);
         if (!string.IsNullOrEmpty(entityId))   q = q.Where(a => a.EntityId == entityId);
         if (!string.IsNullOrEmpty(action))     q = q.Where(a => a.Action == action);
@@ -143,6 +149,67 @@ public class AdminController(AppDbContext db) : ControllerBase
             .ToListAsync();
 
         return new AuditLogPageDto { Items = items, Total = total, Page = page, PageSize = pageSize };
+    }
+
+    // ─── Image Migration ──────────────────────────────────────────────────────
+    // POST /api/admin/migrate-images-to-r2
+    // Idempotent: "products/" ile baslayan key'ler skip edilir.
+
+    [HttpPost("migrate-images-to-r2")]
+    public async Task<IActionResult> MigrateImagesToR2()
+    {
+        var images = await db.ProductImages.ToListAsync();
+        var total = images.Count;
+        var migrated = 0;
+        var skipped = 0;
+        var failed = new List<string>();
+
+        foreach (var image in images)
+        {
+            if (fileStorage.Owns(image.FilePath))
+            {
+                skipped++;
+                continue;
+            }
+
+            if (!localStorage.Owns(image.FilePath))
+            {
+                failed.Add($"{image.Id}: unknown path format '{image.FilePath}'");
+                continue;
+            }
+
+            try
+            {
+                await using var stream = await localStorage.DownloadAsync(image.FilePath);
+
+                var ext = Path.GetExtension(image.FilePath);
+                if (string.IsNullOrEmpty(ext)) ext = ".jpg";
+                var newKey = $"products/{image.ProductId}/{Guid.NewGuid()}{ext}";
+
+                var contentType = ext.ToLower() switch
+                {
+                    ".webp" => "image/webp",
+                    ".png"  => "image/png",
+                    ".jpg" or ".jpeg" => "image/jpeg",
+                    _ => "image/jpeg"
+                };
+
+                await fileStorage.UploadAsync(stream, newKey, contentType);
+
+                var oldPath = image.FilePath;
+                image.FilePath = newKey;
+                await db.SaveChangesAsync();
+
+                await localStorage.DeleteAsync(oldPath);
+                migrated++;
+            }
+            catch (Exception ex)
+            {
+                failed.Add($"{image.Id} ({image.FilePath}): {ex.Message}");
+            }
+        }
+
+        return Ok(new { total, migrated, skipped, failedCount = failed.Count, failed });
     }
 }
 

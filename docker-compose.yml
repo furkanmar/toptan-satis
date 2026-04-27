@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-wholesale}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     ports:
-      - "5433:5432"   # 5432 already used by existing Pi postgres
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -31,10 +31,38 @@ services:
       Jwt__Issuer: ${JWT_ISSUER:-marifoglu.trade}
       Jwt__Audience: ${JWT_AUDIENCE:-marifoglu.trade}
       Seq__Url: http://seq:80
+      R2__AccountId: ${R2_ACCOUNT_ID}
+      R2__AccessKeyId: ${R2_ACCESS_KEY_ID}
+      R2__SecretAccessKey: ${R2_SECRET_ACCESS_KEY}
+      R2__BucketName: ${R2_BUCKET_NAME:-marifoglu-media}
     ports:
       - "5001:8080"
     volumes:
       - uploads_data:/app/wwwroot/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  pg-backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    container_name: wholesale_pgbackup
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-wholesale}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-wholesaledb}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_ENDPOINT: ${R2_ENDPOINT}
+      R2_BACKUP_BUCKET: ${R2_BACKUP_BUCKET:-marifoglu-backups}
+      RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    volumes:
+      - backup_data:/backups
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,3 +95,4 @@ volumes:
   postgres_data:
   uploads_data:
   seq_data:
+  backup_data:

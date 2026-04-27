@@ -8,6 +8,7 @@ using Serilog.Events;
 using WholesaleApi.Data;
 using WholesaleApi.Middleware;
 using WholesaleApi.Services;
+using WholesaleApi.Services.Storage;
 
 // Npgsql 6+: DateTime.Unspecified → timestamp with time zone uyumu
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
@@ -56,6 +57,27 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+// ─── File Storage (R2) ──────────────────────────────────────────────────────
+var r2Options = new R2StorageOptions
+{
+    AccountId    = builder.Configuration["R2:AccountId"]    ?? throw new InvalidOperationException("R2:AccountId eksik"),
+    AccessKeyId  = builder.Configuration["R2:AccessKeyId"]  ?? throw new InvalidOperationException("R2:AccessKeyId eksik"),
+    SecretAccessKey = builder.Configuration["R2:SecretAccessKey"] ?? throw new InvalidOperationException("R2:SecretAccessKey eksik"),
+    BucketName   = builder.Configuration["R2:BucketName"]   ?? "marifoglu-media"
+};
+
+builder.Services.AddSingleton(r2Options);
+builder.Services.AddSingleton<R2FileStorage>();
+builder.Services.AddSingleton<IFileStorageService>(sp => sp.GetRequiredService<R2FileStorage>());
+
+// LocalFileStorage — migration script + legacy dosya silme için
+builder.Services.AddSingleton<LocalFileStorage>(sp =>
+{
+    var env2 = sp.GetRequiredService<IWebHostEnvironment>();
+    // BaseUrl runtime'da değişkendir; migration için sabit değil, sadece legacy delete kullanılıyor
+    return new LocalFileStorage(env2.WebRootPath, "http://localhost");
+});
 
 // App services
 builder.Services.AddScoped<TokenService>();
