@@ -3,7 +3,7 @@ set -e
 
 # ─── rclone config ────────────────────────────────────────────────────────────
 mkdir -p /root/.config/rclone
-cat > /root/.config/rclone/rclone.conf <<EOF
+cat > /root/.config/rclone/rclone.conf <<RCLONE
 [r2]
 type = s3
 provider = Cloudflare
@@ -12,16 +12,29 @@ secret_access_key = ${R2_SECRET_ACCESS_KEY}
 endpoint = ${R2_ENDPOINT}
 acl = private
 no_check_bucket = true
-EOF
+RCLONE
 
-# ─── cron job (03:00 her gün) ─────────────────────────────────────────────────
-mkdir -p /etc/crontabs
-echo "0 3 * * * /usr/local/bin/backup.sh >> /var/log/backup.log 2>&1" > /etc/crontabs/root
+echo "[entrypoint] pg-backup servisi başlatıldı. Her gün 03:00'te çalışacak."
 
-# Başlangıçta bir kez çalıştır (isteğe bağlı; yorum kaldırılabilir)
-# /usr/local/bin/backup.sh
+# ─── 03:00'e kaç saniye kaldığını hesapla ────────────────────────────────────
+secs_until_3am() {
+    local h m s total target
+    h=$(date +%H); m=$(date +%M); s=$(date +%S)
+    total=$((10#$h * 3600 + 10#$m * 60 + 10#$s))
+    target=$((3 * 3600))   # 03:00:00
+    if [ "$total" -lt "$target" ]; then
+        echo $((target - total))
+    else
+        echo $((86400 - total + target))
+    fi
+}
 
-echo "[entrypoint] pg-backup servisi başlatıldı. Cron 03:00'te çalışacak."
-
-# crond -f: foreground, log level 8 (verbose)
-exec crond -f
+# ─── Döngü ───────────────────────────────────────────────────────────────────
+while true; do
+    WAIT=$(secs_until_3am)
+    echo "[$(date -u +%FT%TZ)] Sonraki backup: ${WAIT}s sonra (03:00 lokal)"
+    sleep "$WAIT"
+    /usr/local/bin/backup.sh >> /var/log/backup.log 2>&1
+    # Aynı dakikada tekrar tetiklenmesin
+    sleep 61
+done
