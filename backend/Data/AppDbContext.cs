@@ -40,8 +40,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         // Product
         mb.Entity<Product>().Property(p => p.Price).HasPrecision(18, 2);
 
-        // Optimistic concurrency — PostgreSQL xmin system column (kolon oluşturmaz)
-        mb.Entity<Product>().UseXminAsConcurrencyToken();
+        // Optimistic concurrency — PostgreSQL xmin system column (kolon oluşturmaz).
+        // UseXminAsConcurrencyToken() extension'ının yaptığı şey tam olarak budur.
+        mb.Entity<Product>()
+            .Property<uint>("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
 
         // ProductUnitConfig → Product
         mb.Entity<ProductUnitConfig>().Property(u => u.Price).HasPrecision(18, 2);

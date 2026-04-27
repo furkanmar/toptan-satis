@@ -16,12 +16,6 @@ public class Product
     public int VatRate { get; set; } = 18;          // KDV oranı: 0, 1, 10, 18, 20
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    /// <summary>
-    /// PostgreSQL xmin system column — optimistic concurrency token.
-    /// EF Core + Npgsql bunu otomatik yönetir, migration'da kolon oluşturmaz.
-    /// </summary>
-    public uint xmin { get; set; }
-
     // Navigation
     public Wholesaler Wholesaler { get; set; } = null!;
     public Category Category { get; set; } = null!;
