@@ -153,6 +153,9 @@ using (var scope = app.Services.CreateScope())
     Log.Information("Database migrated");
     await DbSeeder.SeedAsync(db);
     Log.Information("Database seeded");
+    var webEnv = scope.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
+    await DbSeeder.SeedImagesAsync(db, webEnv.WebRootPath ?? Path.Combine(AppContext.BaseDirectory, "wwwroot"));
+    Log.Information("Images seeded");
 }
 
 await app.RunAsync();

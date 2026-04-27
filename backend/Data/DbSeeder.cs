@@ -261,4 +261,53 @@ public static class DbSeeder
         );
         await db.SaveChangesAsync();
     }
+
+    // ─── Image Seeder (local uploads → migration test için) ───────────────────
+    public static async Task SeedImagesAsync(AppDbContext db, string? webRootPath)
+    {
+        if (await db.ProductImages.AnyAsync()) return;
+
+        // wwwroot yoksa fallback
+        webRootPath ??= Path.Combine(AppContext.BaseDirectory, "wwwroot");
+
+        var products = await db.Products.ToListAsync();
+        if (products.Count == 0) return;
+
+        var seedDir = Path.Combine(webRootPath, "uploads", "seed");
+        Directory.CreateDirectory(seedDir);
+
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var rng = new Random(42); // deterministik
+
+        foreach (var product in products)
+        {
+            var imgCount = rng.Next(1, 4); // 1-3 görsel
+            for (var i = 0; i < imgCount; i++)
+            {
+                try
+                {
+                    // picsum.photos seed=productId+i → deterministik görsel
+                    var picsumSeed = $"{product.Id:N}{i}";
+                    var url = $"https://picsum.photos/seed/{picsumSeed}/600/600";
+                    var bytes = await http.GetByteArrayAsync(url);
+
+                    var filename = $"product_{product.Id:N}_{i}.jpg";
+                    await File.WriteAllBytesAsync(Path.Combine(seedDir, filename), bytes);
+
+                    db.ProductImages.Add(new ProductImage
+                    {
+                        ProductId = product.Id,
+                        FilePath  = $"uploads/seed/{filename}",
+                        IsMain    = i == 0
+                    });
+                }
+                catch
+                {
+                    // Ağ hatası olursa bu görseli atla
+                }
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
 }
