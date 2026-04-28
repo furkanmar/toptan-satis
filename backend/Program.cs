@@ -33,7 +33,9 @@ builder.Services.AddSingleton<AuditInterceptor>();
 
 builder.Services.AddDbContext<AppDbContext>((sp, opt) =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("Default"))
-       .AddInterceptors(sp.GetRequiredService<AuditInterceptor>()));
+       .AddInterceptors(sp.GetRequiredService<AuditInterceptor>())
+       .ConfigureWarnings(w => w.Ignore(
+           Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
 // JWT
 var jwtSecret = builder.Configuration["Jwt:Secret"]
