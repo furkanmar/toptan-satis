@@ -29,11 +29,12 @@ interface ProductForm {
   categoryId: string
   brand: string
   manufacturer: string
+  minimumStockLevel: string  // '' = alarm yok
 }
 
 const emptyForm = (): ProductForm => ({
   name: '', description: '', price: '', vatRate: '18', minOrderQty: '1',
-  stock: '0', categoryId: '', brand: '', manufacturer: '',
+  stock: '0', categoryId: '', brand: '', manufacturer: '', minimumStockLevel: '',
 })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -272,6 +273,9 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
         categoryId: localProduct.categoryId,
         brand: localProduct.brand ?? '',
         manufacturer: localProduct.manufacturer ?? '',
+        minimumStockLevel: localProduct.minimumStockLevel != null
+          ? localProduct.minimumStockLevel.toString()
+          : '',
       }
     : emptyForm()
   )
@@ -318,6 +322,7 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
         categoryId: f.categoryId,
         brand: f.brand || undefined,
         manufacturer: f.manufacturer || undefined,
+        minimumStockLevel: f.minimumStockLevel !== '' ? parseInt(f.minimumStockLevel) : null,
         isActive,
       }
       if (isEdit) return productsApi.update(localProduct!.id, payload)
@@ -467,6 +472,23 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
                     <input type="number" min="1" value={form.minOrderQty} onChange={set('minOrderQty')}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Minimum Stok Alarmı
+                    <span className="ml-1 text-gray-400 font-normal">(boş = alarm yok)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.minimumStockLevel}
+                    onChange={set('minimumStockLevel')}
+                    placeholder="Örn: 50"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Stok bu seviyenin altına düşünce Telegram'a alarm gönderilir.
+                  </p>
                 </div>
               </section>
 

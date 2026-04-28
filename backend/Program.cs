@@ -90,6 +90,17 @@ builder.Services.AddSingleton<LocalFileStorage>(sp =>
     return new LocalFileStorage(env2.WebRootPath, "http://localhost");
 });
 
+// ─── Telegram ───────────────────────────────────────────────────────────────
+builder.Services.AddHttpClient("Telegram", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+builder.Services.AddScoped<ITelegramNotificationService, TelegramNotificationService>();
+builder.Services.AddScoped<NotificationService>();
+
+// ─── Background jobs ─────────────────────────────────────────────────────────
+builder.Services.AddHostedService<IdempotencyCleanupService>();
+
 // App services
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<AuthService>();
@@ -154,6 +165,7 @@ app.UseCors("AllowFrontend");
 app.UseStaticFiles(); // serves wwwroot/uploads
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<IdempotencyMiddleware>();  // auth'dan sonra — userId okur
 app.MapControllers();
 
 // ─── Auto migrate on startup ─────────────────────────────────────────────────

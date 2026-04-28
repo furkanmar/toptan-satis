@@ -4,7 +4,10 @@ using WholesaleApi.Entities;
 
 namespace WholesaleApi.Services;
 
-public class StockService(AppDbContext db) : IStockService
+public class StockService(
+    AppDbContext db,
+    NotificationService notifications,
+    ILogger<StockService> logger) : IStockService
 {
     public async Task ApplyMovementAsync(
         Guid productId,
@@ -31,5 +34,18 @@ public class StockService(AppDbContext db) : IStockService
             UserId = userId,
             Reason = reason,
         });
+
+        // MinimumStockLevel alarm — sadece stok azaldığında kontrol et
+        if (qtyChange < 0 &&
+            product.MinimumStockLevel.HasValue &&
+            product.Stock <= product.MinimumStockLevel.Value)
+        {
+            logger.LogWarning(
+                "LowStock: Product={ProductId} Name={Name} Stock={Stock} MinLevel={MinLevel}",
+                productId, product.Name, product.Stock, product.MinimumStockLevel.Value);
+
+            // Fire-and-forget: bildirim gitmezse iş akışı durmasın
+            _ = notifications.LowStockAsync(product, product.Stock);
+        }
     }
 }

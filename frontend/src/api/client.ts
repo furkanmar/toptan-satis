@@ -129,6 +129,14 @@ export const categoriesApi = {
     api.delete(`/categories/${id}`).then(r => r.data),
 }
 
+// ─── User profile ────────────────────────────────────────────────────────────
+export const usersApi = {
+  getMe: () =>
+    api.get('/users/me').then(r => r.data),
+  updateTelegram: (telegramChatId: string | null) =>
+    api.patch('/users/me/telegram', { telegramChatId }).then(r => r.data),
+}
+
 // ─── Admin ───────────────────────────────────────────────────────────────────
 export const adminApi = {
   getUsers: () =>

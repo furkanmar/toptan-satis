@@ -11,6 +11,7 @@ public class OrderService(
     AppDbContext db,
     IStockService stockService,
     IAuditService auditService,
+    NotificationService notifications,
     IHttpContextAccessor httpContextAccessor,
     ILogger<OrderService> logger)
 {
@@ -72,6 +73,12 @@ public class OrderService(
 
         db.Orders.Add(order);
         await db.SaveChangesAsync();
+
+        // Toptancıya yeni sipariş bildirimi (fire-and-forget)
+        var created = await BuildQuery().FirstOrDefaultAsync(o => o.Id == order.Id);
+        if (created is not null)
+            _ = notifications.OrderCreatedAsync(created);
+
         return await GetByIdAsync(order.Id);
     }
 
@@ -184,6 +191,11 @@ public class OrderService(
         await db.SaveChangesAsync();
         await tx.CommitAsync();
 
+        // Mağazaya onay bildirimi (fire-and-forget)
+        var confirmed = await BuildQuery().FirstOrDefaultAsync(o => o.Id == orderId);
+        if (confirmed is not null)
+            _ = notifications.OrderConfirmedAsync(confirmed);
+
         return await GetByIdAsync(orderId);
     }
 
@@ -293,6 +305,19 @@ public class OrderService(
 
         await db.SaveChangesAsync();
         await tx.CommitAsync();
+
+        // Bildirim (fire-and-forget)
+        var updated = await BuildQuery().FirstOrDefaultAsync(o => o.Id == orderId);
+        if (updated is not null)
+        {
+            _ = newStatus switch
+            {
+                OrderStatus.Rejected  => notifications.OrderRejectedAsync(updated),
+                OrderStatus.Cancelled => notifications.OrderCancelledAsync(
+                    updated, cancelledByWholesaler: CurrentRole == "Wholesaler"),
+                _                     => Task.CompletedTask
+            };
+        }
 
         return await GetByIdAsync(orderId);
     }

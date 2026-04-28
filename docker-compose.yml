@@ -35,6 +35,7 @@ services:
       R2__AccessKeyId: ${R2_ACCESS_KEY_ID}
       R2__SecretAccessKey: ${R2_SECRET_ACCESS_KEY}
       R2__BucketName: ${R2_BUCKET_NAME:-marifoglu-media}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
     ports:
       - "5001:8080"
     volumes:

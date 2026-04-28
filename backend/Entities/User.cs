@@ -11,6 +11,7 @@ public class User
     public UserRole Role { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public string? TelegramChatId { get; set; }         // Telegram bildirimleri için
 
     // Navigation
     public Wholesaler? Wholesaler { get; set; }

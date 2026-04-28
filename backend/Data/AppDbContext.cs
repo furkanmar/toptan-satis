@@ -19,6 +19,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<CreditTransaction> CreditTransactions => Set<CreditTransaction>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
+    public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -133,5 +135,33 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         mb.Entity<AuditLog>()
             .HasIndex(a => new { a.EntityType, a.EntityId })
             .HasDatabaseName("IX_AuditLogs_EntityType_EntityId");
+
+        // IdempotencyKey — unique index on Key, partial TTL cleanup
+        mb.Entity<IdempotencyKey>()
+            .HasIndex(ik => ik.Key)
+            .IsUnique()
+            .HasDatabaseName("IX_IdempotencyKeys_Key");
+
+        mb.Entity<IdempotencyKey>()
+            .HasIndex(ik => ik.ExpiresAt)
+            .HasDatabaseName("IX_IdempotencyKeys_ExpiresAt");
+
+        // NotificationLog — enum → string
+        mb.Entity<NotificationLog>()
+            .Property(nl => nl.Type).HasConversion<string>();
+
+        mb.Entity<NotificationLog>()
+            .Property(nl => nl.Channel).HasConversion<string>();
+
+        mb.Entity<NotificationLog>()
+            .Property(nl => nl.Status).HasConversion<string>();
+
+        mb.Entity<NotificationLog>()
+            .HasIndex(nl => new { nl.UserId, nl.CreatedAt })
+            .HasDatabaseName("IX_NotificationLogs_UserId_CreatedAt");
+
+        mb.Entity<NotificationLog>()
+            .HasIndex(nl => nl.Status)
+            .HasDatabaseName("IX_NotificationLogs_Status");
     }
 }

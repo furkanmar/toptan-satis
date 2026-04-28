@@ -37,6 +37,7 @@ export interface Product {
   vatRate: number          // KDV oranı: 0, 1, 10, 18, 20
   minOrderQty: number
   stock: number
+  minimumStockLevel?: number | null
   isActive: boolean
   createdAt: string
   images: ProductImage[]

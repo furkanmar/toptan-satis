@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Layout from '../../components/Layout'
-import { api, categoriesApi } from '../../api/client'
+import { api, categoriesApi, usersApi } from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 import type { Category } from '../../types'
 
@@ -20,6 +20,8 @@ export default function WholesalerSettings() {
   const [saved, setSaved] = useState(false)
   const [newCat, setNewCat] = useState('')
   const [catError, setCatError] = useState('')
+  const [telegramChatId, setTelegramChatId] = useState('')
+  const [telegramSaved, setTelegramSaved] = useState(false)
 
   const saveMutation = useMutation({
     mutationFn: () => api.put('/wholesalers/me', form),
@@ -48,6 +50,24 @@ export default function WholesalerSettings() {
   const deleteCatMutation = useMutation({
     mutationFn: (id: string) => categoriesApi.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['categories', profileId] })
+  })
+
+  const { data: meData } = useQuery<{ telegramChatId?: string }>({
+    queryKey: ['users', 'me'],
+    queryFn: usersApi.getMe,
+  })
+
+  useEffect(() => {
+    if (meData?.telegramChatId) setTelegramChatId(meData.telegramChatId)
+  }, [meData?.telegramChatId])
+
+  const telegramMutation = useMutation({
+    mutationFn: () => usersApi.updateTelegram(telegramChatId || null),
+    onSuccess: () => {
+      setTelegramSaved(true)
+      setTimeout(() => setTelegramSaved(false), 2000)
+      qc.invalidateQueries({ queryKey: ['users', 'me'] })
+    }
   })
 
   return (
@@ -136,6 +156,46 @@ export default function WholesalerSettings() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Telegram bildirimleri */}
+      <div className="mt-6 bg-white rounded-xl border border-gray-200 p-6">
+        <h2 className="font-semibold text-gray-900 mb-1">Telegram Bildirimleri</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Yeni sipariş ve stok alarmlarını Telegram'a almak için:{' '}
+          <a
+            href="https://t.me/Furkanpibot"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline font-medium"
+          >
+            @Furkanpibot
+          </a>
+          {' '}botuna <strong>/start</strong> yazın, dönen Chat ID'yi aşağıya yapıştırın.
+        </p>
+        <div className="flex gap-3 max-w-sm">
+          <input
+            value={telegramChatId}
+            onChange={e => setTelegramChatId(e.target.value)}
+            placeholder="Örn: 123456789"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+          />
+          <button
+            onClick={() => telegramMutation.mutate()}
+            disabled={telegramMutation.isPending}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {telegramMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+          </button>
+        </div>
+        {telegramSaved && (
+          <p className="text-xs text-green-600 font-medium mt-2">✓ Chat ID kaydedildi</p>
+        )}
+        {meData?.telegramChatId && !telegramSaved && (
+          <p className="text-xs text-gray-400 mt-2">
+            Aktif Chat ID: <span className="font-mono">{meData.telegramChatId}</span>
+          </p>
+        )}
       </div>
     </Layout>
   )
