@@ -16,6 +16,7 @@ public class ProductDto
     public int Stock { get; set; }
     public bool IsActive { get; set; }
     public int VatRate { get; set; }
+    public int? MinimumStockLevel { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<ProductImageDto> Images { get; set; } = [];
     public List<ProductUnitConfigDto> UnitConfigs { get; set; } = [];
@@ -73,6 +74,8 @@ public class UpdateProductDto
     public bool? IsActive { get; set; }
     public int? VatRate { get; set; }
     public Guid? CategoryId { get; set; }
+    /// <summary>-1 = alarmı kapat (null yap), >= 0 = seviyeyi ayarla</summary>
+    public int? MinimumStockLevel { get; set; }
 }
 
 // ─── Unit Config yönetimi ─────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import Layout from '../../components/Layout'
 import { ordersApi } from '../../api/client'
 import type { Order, OrderItem } from '../../types'
@@ -60,10 +61,22 @@ export default function WholesalerOrders() {
       setConfirmModal(null)
       setConfirmForm({ wholesalerNote: '', dueDate: '', createCreditEntry: true })
     },
+    onSuccess: (_data, variables) => {
+      if (variables.force) {
+        toast.success('Sipariş onaylandı. Negatif stok kaydı oluşturuldu — stok hareketleri sayfasından görebilirsiniz.')
+      }
+    },
     onError: (err: unknown, variables) => {
+      const status = (err as { response?: { status?: number } })?.response?.status
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? ''
+      if (status === 409) {
+        // global interceptor toast'ı zaten gösterdi, sadece refetch yap
+        qc.invalidateQueries({ queryKey: ['incoming-orders'] })
+        setConfirmModal(null)
+        return
+      }
       if (msg.includes('yeterli stok yok')) {
-        setConfirmModal(null)   // confirm modal'ı kapat, stock warning üstte açılsın
+        setConfirmModal(null)
         setStockWarning({ order: variables.order, msg })
       }
     }
@@ -305,8 +318,15 @@ export default function WholesalerOrders() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <div className="text-3xl mb-3 text-center">⚠️</div>
             <h2 className="font-bold text-gray-900 mb-2 text-center">Yetersiz Stok</h2>
-            <p className="text-sm text-gray-600 mb-5 text-center">{stockWarning.msg}</p>
-            <p className="text-sm text-gray-700 mb-5 text-center">Yine de onaylayıp stoku eksi'ye düşürmek istiyor musunuz?</p>
+            <p className="text-sm text-gray-600 mb-3 text-center">{stockWarning.msg}</p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+              <p className="text-xs text-red-700 font-semibold text-center">
+                🔴 Bu hareket stoğu negatife düşürür ve loglanır
+              </p>
+              <p className="text-xs text-red-600 text-center mt-1">
+                Stok hareketleri sayfasından <strong>ForceConfirmNegative</strong> kaydı oluşturulacaktır.
+              </p>
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={() => {
@@ -314,7 +334,7 @@ export default function WholesalerOrders() {
                   setStockWarning(null)
                 }}
                 disabled={confirmMutation.isPending}
-                className="flex-1 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
               >
                 Onayla (Eksi Stok)
               </button>

@@ -14,11 +14,16 @@ import WholesalerProducts from './pages/wholesaler/Products'
 import WholesalerOrders from './pages/wholesaler/Orders'
 import WholesalerCredit from './pages/wholesaler/Credit'
 import WholesalerSettings from './pages/wholesaler/Settings'
+import WholesalerStockMovements from './pages/wholesaler/StockMovements'
 
 // Admin sayfaları
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminUsers from './pages/admin/Users'
 import AdminStoreWholesalers from './pages/admin/StoreWholesalers'
+import AdminAuditLogs from './pages/admin/AuditLogs'
+
+// Ortak
+import Notifications from './pages/Notifications'
 
 function RequireAuth({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
   const { isAuthenticated, role } = useAuthStore()
@@ -42,9 +47,8 @@ export default function App() {
         <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Mağaza — toptancı seçim */}
+        {/* Mağaza */}
         <Route path="/store" element={<RequireAuth roles={['Store']}><SelectWholesaler /></RequireAuth>} />
-        {/* Mağaza — toptancı context */}
         <Route path="/store/:wholesalerId" element={<RequireAuth roles={['Store']}><StoreHome /></RequireAuth>} />
         <Route path="/store/:wholesalerId/orders" element={<RequireAuth roles={['Store']}><StoreOrders /></RequireAuth>} />
         <Route path="/store/:wholesalerId/credit" element={<RequireAuth roles={['Store']}><StoreCredit /></RequireAuth>} />
@@ -55,11 +59,16 @@ export default function App() {
         <Route path="/wholesaler/orders" element={<RequireAuth roles={['Wholesaler']}><WholesalerOrders /></RequireAuth>} />
         <Route path="/wholesaler/credit" element={<RequireAuth roles={['Wholesaler']}><WholesalerCredit /></RequireAuth>} />
         <Route path="/wholesaler/settings" element={<RequireAuth roles={['Wholesaler']}><WholesalerSettings /></RequireAuth>} />
+        <Route path="/wholesaler/stock-movements" element={<RequireAuth roles={['Wholesaler']}><WholesalerStockMovements /></RequireAuth>} />
 
         {/* Admin */}
         <Route path="/admin" element={<RequireAuth roles={['Admin']}><AdminDashboard /></RequireAuth>} />
         <Route path="/admin/users" element={<RequireAuth roles={['Admin']}><AdminUsers /></RequireAuth>} />
         <Route path="/admin/store-wholesalers" element={<RequireAuth roles={['Admin']}><AdminStoreWholesalers /></RequireAuth>} />
+        <Route path="/admin/audit-logs" element={<RequireAuth roles={['Admin']}><AdminAuditLogs /></RequireAuth>} />
+
+        {/* Ortak */}
+        <Route path="/notifications" element={<RequireAuth roles={['Wholesaler', 'Store']}><Notifications /></RequireAuth>} />
       </Routes>
     </BrowserRouter>
   )

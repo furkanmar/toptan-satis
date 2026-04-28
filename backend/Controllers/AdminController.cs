@@ -1,8 +1,11 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WholesaleApi.Data;
 using WholesaleApi.DTOs;
+using WholesaleApi.Entities;
+using WholesaleApi.Services;
 using WholesaleApi.Services.Storage;
 
 namespace WholesaleApi.Controllers;
@@ -14,7 +17,9 @@ public class AdminController(
     AppDbContext db,
     IFileStorageService fileStorage,
     LocalFileStorage localStorage,
-    IWebHostEnvironment env) : ControllerBase
+    IWebHostEnvironment env,
+    IStockService stockService,
+    IAuditService auditService) : ControllerBase
 {
     // ─── Kullanıcı yönetimi ───────────────────────────────────────────────────
 
@@ -210,6 +215,34 @@ public class AdminController(
         }
 
         return Ok(new { total, migrated, skipped, failedCount = failed.Count, failed });
+    }
+
+    // ─── Manuel stok düzeltme ─────────────────────────────────────────────────
+    // POST /api/admin/products/{id}/stock-adjustment
+
+    [HttpPost("products/{id:guid}/stock-adjustment")]
+    public async Task<IActionResult> StockAdjustment(Guid id, [FromBody] StockAdjustmentRequestDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Reason) || dto.Reason.Trim().Length < 10)
+            return BadRequest(new { error = "Sebep en az 10 karakter olmalıdır" });
+
+        var product = await db.Products.FindAsync(id);
+        if (product is null) return NotFound();
+
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var delta = dto.NewStock - product.Stock;
+
+        await stockService.ApplyMovementAsync(
+            id, delta, MovementType.ManualAdjustment,
+            orderId: null, userId, dto.Reason.Trim());
+
+        auditService.LogAction(
+            userId, "Admin", "ManualStockAdjustment", "Product", id.ToString(),
+            new { OldStock = product.Stock, NewStock = dto.NewStock, Reason = dto.Reason.Trim() },
+            HttpContext.Connection.RemoteIpAddress?.ToString());
+
+        await db.SaveChangesAsync();
+        return Ok(new { productId = id, newStock = product.Stock, delta });
     }
 }
 

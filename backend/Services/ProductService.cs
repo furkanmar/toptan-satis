@@ -23,7 +23,7 @@ public class ProductService(
 
     // Queries
 
-    public async Task<List<ProductDto>> GetAllAsync(Guid? wholesalerId = null, Guid? categoryId = null, bool includeInactive = false)
+    public async Task<List<ProductDto>> GetAllAsync(Guid? wholesalerId = null, Guid? categoryId = null, bool includeInactive = false, bool lowStock = false)
     {
         var q = db.Products
             .Include(p => p.Images)
@@ -36,6 +36,7 @@ public class ProductService(
         if (!includeInactive) q = q.Where(p => p.IsActive);
         if (wholesalerId.HasValue) q = q.Where(p => p.WholesalerId == wholesalerId);
         if (categoryId.HasValue) q = q.Where(p => p.CategoryId == categoryId);
+        if (lowStock) q = q.Where(p => p.MinimumStockLevel.HasValue && p.Stock <= p.MinimumStockLevel.Value);
 
         var list = await q.OrderBy(p => p.Name).ToListAsync();
         var tasks = list.Select(p => MapDtoAsync(p));
@@ -99,6 +100,8 @@ public class ProductService(
         if (dto.IsActive.HasValue) product.IsActive = dto.IsActive.Value;
         if (dto.VatRate.HasValue) product.VatRate = dto.VatRate.Value;
         if (dto.CategoryId.HasValue) product.CategoryId = dto.CategoryId.Value;
+        if (dto.MinimumStockLevel.HasValue)
+            product.MinimumStockLevel = dto.MinimumStockLevel.Value < 0 ? null : dto.MinimumStockLevel.Value;
 
         if (dto.Price.HasValue && dto.Price.Value != oldPrice)
         {
@@ -329,6 +332,7 @@ public class ProductService(
             MinOrderQty = p.MinOrderQty,
             Stock = p.Stock,
             IsActive = p.IsActive,
+            MinimumStockLevel = p.MinimumStockLevel,
             CreatedAt = p.CreatedAt,
             Images = images,
             UnitConfigs = p.UnitConfigs.OrderBy(u => u.SortOrder).Select(MapUnitConfigDto).ToList()

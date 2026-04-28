@@ -132,3 +132,81 @@ export interface StoreWholesalerRelation {
   isActive: boolean
   assignedAt: string
 }
+
+// ─── Stok hareketleri ────────────────────────────────────────────────────────
+
+export type MovementType =
+  | 'InitialBalance'
+  | 'OrderConfirm'
+  | 'OrderCancel'
+  | 'OrderReject'
+  | 'ManualAdjustment'
+  | 'Return'
+  | 'ForceConfirmNegative'
+
+export interface StockMovement {
+  id: string
+  productId: string
+  productName: string
+  movementType: MovementType
+  quantityChange: number
+  balanceAfter: number
+  orderId?: string | null
+  userId: string
+  reason?: string | null
+  createdAt: string
+}
+
+export interface StockMovementPage {
+  items: StockMovement[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+// ─── Audit log ───────────────────────────────────────────────────────────────
+
+export interface AuditLog {
+  id: string
+  userId?: string | null
+  userRole: string
+  action: string
+  entityType: string
+  entityId: string
+  changes?: string | null
+  ipAddress?: string | null
+  createdAt: string
+}
+
+export interface AuditLogPage {
+  items: AuditLog[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+// ─── Bildirimler ─────────────────────────────────────────────────────────────
+
+export type NotificationType =
+  | 'OrderCreated' | 'OrderConfirmed' | 'OrderRejected' | 'OrderCancelled' | 'LowStock'
+
+export type NotificationStatus = 'Pending' | 'Sent' | 'Failed'
+
+export interface NotificationLog {
+  id: string
+  type: NotificationType
+  payload: string
+  channel: string
+  status: NotificationStatus
+  attemptCount: number
+  lastAttemptAt?: string | null
+  errorMessage?: string | null
+  createdAt: string
+}
+
+export interface NotificationLogPage {
+  items: NotificationLog[]
+  total: number
+  page: number
+  pageSize: number
+}

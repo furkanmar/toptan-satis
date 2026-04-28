@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Layout from '../../components/Layout'
+import StockHistoryModal from '../../components/StockHistoryModal'
 import { productsApi, categoriesApi } from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 import type { Product, Category, ProductUnitConfig } from '../../types'
@@ -39,8 +40,16 @@ const emptyForm = (): ProductForm => ({
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function StockBadge({ stock }: { stock: number }) {
-  if (stock <= 0) return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Stok yok</span>
+function StockBadge({ stock, minimumStockLevel }: { stock: number; minimumStockLevel?: number | null }) {
+  const isLow = minimumStockLevel != null && stock <= minimumStockLevel
+  if (stock <= 0) return (
+    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Stok yok</span>
+  )
+  if (isLow) return (
+    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+      ⚠️ Düşük: {stock}
+    </span>
+  )
   if (stock <= 10) return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">{stock}</span>
   return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">{stock}</span>
 }
@@ -322,7 +331,8 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
         categoryId: f.categoryId,
         brand: f.brand || undefined,
         manufacturer: f.manufacturer || undefined,
-        minimumStockLevel: f.minimumStockLevel !== '' ? parseInt(f.minimumStockLevel) : null,
+        // -1 = sentinel: backend'de null'a çevirir (alarmı kaldırır)
+        minimumStockLevel: f.minimumStockLevel !== '' ? parseInt(f.minimumStockLevel) : -1,
         isActive,
       }
       if (isEdit) return productsApi.update(localProduct!.id, payload)
@@ -649,6 +659,7 @@ export default function WholesalerProducts() {
   const [search, setSearch] = useState('')
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'passive'>('all')
   const [modal, setModal] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
+  const [stockHistoryProduct, setStockHistoryProduct] = useState<Product | null>(null)
   const [editingStock, setEditingStock] = useState<{ id: string; value: string } | null>(null)
   const [editingPrice, setEditingPrice] = useState<{ productId: string; configId: string; value: string } | null>(null)
 
@@ -888,7 +899,7 @@ export default function WholesalerProducts() {
                             onClick={() => setEditingStock({ id: p.id, value: p.stock.toString() })}
                             className="hover:bg-gray-100 rounded px-1" title="Stoku düzenle"
                           >
-                            <StockBadge stock={p.stock} />
+                            <StockBadge stock={p.stock} minimumStockLevel={p.minimumStockLevel} />
                           </button>
                         )}
                       </td>
@@ -912,14 +923,23 @@ export default function WholesalerProducts() {
                         </button>
                       </td>
 
-                      {/* Düzenle */}
+                      {/* Aksiyonlar */}
                       <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => setModal({ open: true, product: p })}
-                          className="px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
-                        >
-                          Düzenle
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setStockHistoryProduct(p)}
+                            className="px-2 py-1.5 text-xs text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Stok Hareketleri"
+                          >
+                            📊
+                          </button>
+                          <button
+                            onClick={() => setModal({ open: true, product: p })}
+                            className="px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                          >
+                            Düzenle
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -937,6 +957,15 @@ export default function WholesalerProducts() {
           categories={categories}
           profileId={profileId ?? ''}
           onClose={() => setModal({ open: false, product: null })}
+        />
+      )}
+
+      {/* Stok Geçmişi Modal */}
+      {stockHistoryProduct && (
+        <StockHistoryModal
+          productId={stockHistoryProduct.id}
+          productName={stockHistoryProduct.name}
+          onClose={() => setStockHistoryProduct(null)}
         />
       )}
     </Layout>

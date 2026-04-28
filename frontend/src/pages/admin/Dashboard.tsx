@@ -8,6 +8,7 @@ const NAV = [
   { to: '/admin/users', label: 'Kullanıcılar' },
   { to: '/admin/store-wholesalers', label: 'Mağaza-Toptancı' },
   { to: '/admin/categories', label: 'Kategoriler' },
+  { to: '/admin/audit-logs', label: 'Audit Log' },
 ]
 
 export default function AdminDashboard() {

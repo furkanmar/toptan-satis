@@ -1,4 +1,6 @@
 import axios from 'axios'
+import axiosRetry from 'axios-retry'
+import { toast } from 'sonner'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api'
 
@@ -7,18 +9,40 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' }
 })
 
+// ─── Retry (network error + 5xx, 3 deneme, exponential backoff) ──────────────
+axiosRetry(api, {
+  retries: 3,
+  retryDelay: axiosRetry.exponentialDelay,
+  retryCondition: err =>
+    axiosRetry.isNetworkError(err) ||
+    (err.response?.status != null && err.response.status >= 500),
+})
+
+// ─── Request: auth header + idempotency key ───────────────────────────────────
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+
+  // POST/PUT/PATCH → X-Idempotency-Key (sadece ilk denemede set edilir,
+  // axiosRetry aynı config'i gönderir → header korunur)
+  const method = config.method?.toLowerCase() ?? ''
+  if (['post', 'put', 'patch'].includes(method) && !config.headers['X-Idempotency-Key']) {
+    config.headers['X-Idempotency-Key'] = crypto.randomUUID()
+  }
   return config
 })
 
+// ─── Response: 401 logout, 409 conflict toast ─────────────────────────────────
 api.interceptors.response.use(
   res => res,
   err => {
-    if (err.response?.status === 401) {
+    const status = err.response?.status
+    if (status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'
+    }
+    if (status === 409) {
+      toast.error('Veri başkası tarafından değiştirildi, lütfen sayfayı yenileyip tekrar deneyin.')
     }
     return Promise.reject(err)
   }
@@ -32,7 +56,7 @@ export const authApi = {
 
 // ─── Products ────────────────────────────────────────────────────────────────
 export const productsApi = {
-  getAll: (params?: { wholesalerId?: string; categoryId?: string; includeInactive?: boolean }) =>
+  getAll: (params?: { wholesalerId?: string; categoryId?: string; includeInactive?: boolean; lowStock?: boolean }) =>
     api.get('/products', { params }).then(r => r.data),
   getById: (id: string) =>
     api.get(`/products/${id}`).then(r => r.data),
@@ -40,6 +64,12 @@ export const productsApi = {
     api.post('/products', data).then(r => r.data),
   update: (id: string, data: unknown) =>
     api.put(`/products/${id}`, data).then(r => r.data),
+
+  // Stok hareketleri
+  getStockMovements: (
+    id: string,
+    params?: { from?: string; to?: string; types?: string; page?: number; pageSize?: number }
+  ) => api.get(`/products/${id}/stock-movements`, { params }).then(r => r.data),
 
   // Görseller
   uploadImage: (id: string, file: File) => {
@@ -117,6 +147,12 @@ export const wholesalersApi = {
     api.get('/wholesalers').then(r => r.data),
   getById: (id: string) =>
     api.get(`/wholesalers/${id}`).then(r => r.data),
+  // Dashboard: son N stok hareketi
+  getRecentStockMovements: (recent = 10) =>
+    api.get('/wholesalers/stock-movements', { params: { recent } }).then(r => r.data),
+  // Tüm stok hareketleri (paginated)
+  getStockMovements: (params?: { page?: number; pageSize?: number }) =>
+    api.get('/wholesalers/stock-movements', { params }).then(r => r.data),
 }
 
 // ─── Categories ──────────────────────────────────────────────────────────────
@@ -135,6 +171,10 @@ export const usersApi = {
     api.get('/users/me').then(r => r.data),
   updateTelegram: (telegramChatId: string | null) =>
     api.patch('/users/me/telegram', { telegramChatId }).then(r => r.data),
+  testTelegram: (chatId: string) =>
+    api.post('/users/me/telegram/test', { chatId }).then(r => r.data),
+  getNotifications: (params?: { page?: number; pageSize?: number }) =>
+    api.get('/users/me/notifications', { params }).then(r => r.data),
 }
 
 // ─── Admin ───────────────────────────────────────────────────────────────────
@@ -149,4 +189,8 @@ export const adminApi = {
     api.post('/admin/store-wholesalers', { storeId, wholesalerId }).then(r => r.data),
   deleteStoreWholesaler: (storeId: string, wholesalerId: string) =>
     api.delete(`/admin/store-wholesalers/${storeId}/${wholesalerId}`).then(r => r.data),
+  getAuditLogs: (params?: { userId?: string; entityType?: string; entityId?: string; action?: string; from?: string; to?: string; page?: number; pageSize?: number }) =>
+    api.get('/admin/audit-logs', { params }).then(r => r.data),
+  stockAdjustment: (productId: string, newStock: number, reason: string) =>
+    api.post(`/admin/products/${productId}/stock-adjustment`, { newStock, reason }).then(r => r.data),
 }

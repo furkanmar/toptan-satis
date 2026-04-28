@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using WholesaleApi.Data;
 using WholesaleApi.DTOs;
+using WholesaleApi.Entities;
 using WholesaleApi.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,8 +19,9 @@ public class ProductsController(ProductService productService, AppDbContext db) 
     public async Task<List<ProductDto>> GetAll(
         [FromQuery] Guid? wholesalerId,
         [FromQuery] Guid? categoryId,
-        [FromQuery] bool includeInactive = false)
-        => await productService.GetAllAsync(wholesalerId, categoryId, includeInactive);
+        [FromQuery] bool includeInactive = false,
+        [FromQuery] bool lowStock = false)
+        => await productService.GetAllAsync(wholesalerId, categoryId, includeInactive, lowStock);
 
     [HttpGet("{id:guid}")]
     public async Task<ProductDto> GetById(Guid id)
@@ -39,6 +41,60 @@ public class ProductsController(ProductService productService, AppDbContext db) 
     {
         var wholesalerId = await GetWholesalerId();
         return await productService.UpdateAsync(id, wholesalerId, dto);
+    }
+
+    // ─── Stok hareketleri ─────────────────────────────────────────────────────
+
+    [HttpGet("{id:guid}/stock-movements")]
+    [Authorize(Roles = "Wholesaler,Admin")]
+    public async Task<StockMovementPageDto> GetStockMovements(
+        Guid id,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] string? types,   // comma-separated MovementType names
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        page = Math.Max(1, page);
+
+        var q = db.StockMovements
+            .Include(sm => sm.Product)
+            .Where(sm => sm.ProductId == id)
+            .AsQueryable();
+
+        if (from.HasValue) q = q.Where(sm => sm.CreatedAt >= from.Value);
+        if (to.HasValue)   q = q.Where(sm => sm.CreatedAt <= to.Value);
+        if (!string.IsNullOrEmpty(types))
+        {
+            var typeList = types.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => Enum.TryParse<MovementType>(t.Trim(), out var mt) ? mt : (MovementType?)null)
+                .Where(t => t.HasValue).Select(t => t!.Value).ToList();
+            if (typeList.Count > 0)
+                q = q.Where(sm => typeList.Contains(sm.MovementType));
+        }
+
+        var total = await q.CountAsync();
+        var items = await q
+            .OrderByDescending(sm => sm.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(sm => new StockMovementDto
+            {
+                Id = sm.Id,
+                ProductId = sm.ProductId,
+                ProductName = sm.Product.Name,
+                MovementType = sm.MovementType.ToString(),
+                QuantityChange = sm.QuantityChange,
+                BalanceAfter = sm.BalanceAfter,
+                OrderId = sm.OrderId,
+                UserId = sm.UserId,
+                Reason = sm.Reason,
+                CreatedAt = sm.CreatedAt,
+            })
+            .ToListAsync();
+
+        return new StockMovementPageDto { Items = items, Total = total, Page = page, PageSize = pageSize };
     }
 
     // ─── Görsel yönetimi ──────────────────────────────────────────────────────
