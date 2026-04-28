@@ -61,10 +61,21 @@ builder.Services.AddAuthorization();
 // ─── File Storage (R2) ──────────────────────────────────────────────────────
 var r2Options = new R2StorageOptions
 {
-    AccountId    = builder.Configuration["R2:AccountId"]    ?? throw new InvalidOperationException("R2:AccountId eksik"),
-    AccessKeyId  = builder.Configuration["R2:AccessKeyId"]  ?? throw new InvalidOperationException("R2:AccessKeyId eksik"),
-    SecretAccessKey = builder.Configuration["R2:SecretAccessKey"] ?? throw new InvalidOperationException("R2:SecretAccessKey eksik"),
-    BucketName   = builder.Configuration["R2:BucketName"]   ?? "marifoglu-media"
+    AccountId       = Environment.GetEnvironmentVariable("R2_ACCOUNT_ID")
+                      ?? builder.Configuration["R2:AccountId"]
+                      ?? throw new InvalidOperationException("R2_ACCOUNT_ID eksik"),
+
+    AccessKeyId     = Environment.GetEnvironmentVariable("R2_ACCESS_KEY_ID")
+                      ?? builder.Configuration["R2:AccessKeyId"]
+                      ?? throw new InvalidOperationException("R2_ACCESS_KEY_ID eksik"),
+
+    SecretAccessKey = Environment.GetEnvironmentVariable("R2_SECRET_ACCESS_KEY")
+                      ?? builder.Configuration["R2:SecretAccessKey"]
+                      ?? throw new InvalidOperationException("R2_SECRET_ACCESS_KEY eksik"),
+
+    BucketName      = Environment.GetEnvironmentVariable("R2_BUCKET_NAME")
+                      ?? builder.Configuration["R2:BucketName"]
+                      ?? "marifoglu-all"
 };
 
 builder.Services.AddSingleton(r2Options);
