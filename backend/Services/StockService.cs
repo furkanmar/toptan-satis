@@ -6,7 +6,7 @@ namespace WholesaleApi.Services;
 
 public class StockService(
     AppDbContext db,
-    NotificationService notifications,
+    IServiceScopeFactory scopeFactory,
     ILogger<StockService> logger) : IStockService
 {
     public async Task ApplyMovementAsync(
@@ -44,8 +44,34 @@ public class StockService(
                 "LowStock: Product={ProductId} Name={Name} Stock={Stock} MinLevel={MinLevel}",
                 productId, product.Name, product.Stock, product.MinimumStockLevel.Value);
 
-            // Fire-and-forget: bildirim gitmezse iş akışı durmasın
-            _ = notifications.LowStockAsync(product, product.Stock);
+            // Yeni scope ile fire-and-forget — request DbContext'ine dokunmaz
+            var capturedId   = productId;
+            var capturedName = product.Name;
+            var capturedWholesalerId = product.WholesalerId;
+            var capturedMinLevel = product.MinimumStockLevel.Value;
+            var capturedBalance  = product.Stock;
+
+            _ = Task.Run(async () =>
+            {
+                await using var scope = scopeFactory.CreateAsyncScope();
+                var notif = scope.ServiceProvider.GetRequiredService<NotificationService>();
+                try
+                {
+                    // Snapshot nesneyle bildirim — DB'ye ek sorgu atmıyor
+                    var snapshot = new Product
+                    {
+                        Id = capturedId,
+                        Name = capturedName,
+                        WholesalerId = capturedWholesalerId,
+                        MinimumStockLevel = capturedMinLevel,
+                    };
+                    await notif.LowStockAsync(snapshot, capturedBalance);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "LowStock bildirimi gönderilemedi: Product={ProductId}", capturedId);
+                }
+            });
         }
     }
 }

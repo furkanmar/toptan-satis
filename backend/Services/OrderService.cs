@@ -13,6 +13,7 @@ public class OrderService(
     IAuditService auditService,
     NotificationService notifications,
     IHttpContextAccessor httpContextAccessor,
+    IServiceScopeFactory scopeFactory,
     ILogger<OrderService> logger)
 {
     public async Task<OrderDto> CreateAsync(Guid storeId, CreateOrderDto dto)
@@ -74,12 +75,9 @@ public class OrderService(
         db.Orders.Add(order);
         await db.SaveChangesAsync();
 
-        // Toptancıya yeni sipariş bildirimi (fire-and-forget)
-        var created = await BuildQuery().FirstOrDefaultAsync(o => o.Id == order.Id);
-        if (created is not null)
-            _ = notifications.OrderCreatedAsync(created);
-
-        return await GetByIdAsync(order.Id);
+        var result = await GetByIdAsync(order.Id);
+        FireNotification(order.Id, (n, o) => n.OrderCreatedAsync(o));
+        return result;
     }
 
     /// <summary>
@@ -191,12 +189,9 @@ public class OrderService(
         await db.SaveChangesAsync();
         await tx.CommitAsync();
 
-        // Mağazaya onay bildirimi (fire-and-forget)
-        var confirmed = await BuildQuery().FirstOrDefaultAsync(o => o.Id == orderId);
-        if (confirmed is not null)
-            _ = notifications.OrderConfirmedAsync(confirmed);
-
-        return await GetByIdAsync(orderId);
+        var result = await GetByIdAsync(orderId);
+        FireNotification(orderId, (n, o) => n.OrderConfirmedAsync(o));
+        return result;
     }
 
     public async Task<OrderDto> UpdateItemsAsync(Guid orderId, Guid wholesalerId, UpdateOrderItemsDto dto)
@@ -306,20 +301,15 @@ public class OrderService(
         await db.SaveChangesAsync();
         await tx.CommitAsync();
 
-        // Bildirim (fire-and-forget)
-        var updated = await BuildQuery().FirstOrDefaultAsync(o => o.Id == orderId);
-        if (updated is not null)
+        var result = await GetByIdAsync(orderId);
+        var capturedRole = CurrentRole;  // capture before scope ends
+        FireNotification(orderId, (n, o) => newStatus switch
         {
-            _ = newStatus switch
-            {
-                OrderStatus.Rejected  => notifications.OrderRejectedAsync(updated),
-                OrderStatus.Cancelled => notifications.OrderCancelledAsync(
-                    updated, cancelledByWholesaler: CurrentRole == "Wholesaler"),
-                _                     => Task.CompletedTask
-            };
-        }
-
-        return await GetByIdAsync(orderId);
+            OrderStatus.Rejected  => n.OrderRejectedAsync(o),
+            OrderStatus.Cancelled => n.OrderCancelledAsync(o, cancelledByWholesaler: capturedRole == "Wholesaler"),
+            _                     => Task.CompletedTask
+        });
+        return result;
     }
 
     public async Task<List<OrderDto>> GetForStoreAsync(Guid storeId)
@@ -345,6 +335,35 @@ public class OrderService(
 
     private string? CurrentIp =>
         httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
+
+    /// <summary>
+    /// Kendi scope'unda yeni DbContext + NotificationService açarak
+    /// bildirimi fire-and-forget gönderir. Request DbContext'iyle hiçbir
+    /// concurrent erişim yaşanmaz.
+    /// </summary>
+    private void FireNotification(Guid orderId, Func<NotificationService, Order, Task> action)
+    {
+        _ = Task.Run(async () =>
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var notif = scope.ServiceProvider.GetRequiredService<NotificationService>();
+            var scopeDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            try
+            {
+                var order = await scopeDb.Orders
+                    .Include(o => o.Store)
+                    .Include(o => o.Wholesaler)
+                    .Include(o => o.Items).ThenInclude(i => i.Product)
+                    .FirstOrDefaultAsync(o => o.Id == orderId);
+                if (order is not null)
+                    await action(notif, order);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Bildirim gönderilemedi: Order={OrderId}", orderId);
+            }
+        });
+    }
 
     private IQueryable<Order> BuildQuery() =>
         db.Orders
