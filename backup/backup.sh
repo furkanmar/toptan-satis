@@ -7,7 +7,7 @@ POSTGRES_USER="${POSTGRES_USER:-wholesale}"
 POSTGRES_DB="${POSTGRES_DB:-wholesaledb}"
 BACKUP_DIR="/backups"
 RETENTION_DAYS="${RETENTION_DAYS:-7}"
-R2_BACKUP_BUCKET="${R2_BACKUP_BUCKET:-marifoglu-backups}"
+R2_BACKUP_BUCKET="${R2_BACKUP_BUCKET:-marifoglu-all}"
 
 DATE=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="${BACKUP_DIR}/backup_${DATE}.dump"
