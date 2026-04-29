@@ -88,6 +88,9 @@ export interface CreditTransaction {
   id: string
   type: 'OrderDebit' | 'ManualDebit' | 'Payment'
   amount: number
+  allocatedAmount: number
+  remainingAmount: number
+  isFullyAllocated: boolean
   description: string
   dueDate?: string
   orderId?: string
@@ -98,9 +101,12 @@ export interface CreditSummary {
   storeId: string
   storeName: string
   totalDebt: number
-  totalPaid: number
+  totalPayment: number
   balance: number
+  openDebtCount: number
   overdueAmount: number
+  oldestOverdueDate?: string
+  unallocatedPaymentAmount: number
   transactions: CreditTransaction[]
 }
 

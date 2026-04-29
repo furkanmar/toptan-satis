@@ -90,20 +90,35 @@ export default function WholesalerCredit() {
           ) : (
             <>
               {/* Özet */}
-              <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="grid grid-cols-2 gap-3 mb-4 sm:grid-cols-4">
                 <div className="bg-white rounded-xl border border-gray-200 p-3">
                   <p className="text-xs text-gray-500">Toplam Borç</p>
                   <p className="text-lg font-bold text-red-600">₺{detail.totalDebt.toFixed(2)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{detail.openDebtCount} açık</p>
                 </div>
                 <div className="bg-white rounded-xl border border-gray-200 p-3">
                   <p className="text-xs text-gray-500">Toplam Ödeme</p>
-                  <p className="text-lg font-bold text-green-600">₺{detail.totalPaid.toFixed(2)}</p>
+                  <p className="text-lg font-bold text-green-600">₺{detail.totalPayment.toFixed(2)}</p>
+                  {detail.unallocatedPaymentAmount > 0 && (
+                    <p className="text-xs text-blue-500 mt-0.5">+₺{detail.unallocatedPaymentAmount.toFixed(2)} avans</p>
+                  )}
                 </div>
                 <div className={`rounded-xl border p-3 ${detail.balance > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
                   <p className="text-xs text-gray-500">Bakiye</p>
                   <p className={`text-lg font-bold ${detail.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                     ₺{detail.balance.toFixed(2)}
                   </p>
+                </div>
+                <div className={`rounded-xl border p-3 ${detail.overdueAmount > 0 ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
+                  <p className="text-xs text-gray-500">Vadesi Geçmiş</p>
+                  <p className={`text-lg font-bold ${detail.overdueAmount > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
+                    ₺{detail.overdueAmount.toFixed(2)}
+                  </p>
+                  {detail.oldestOverdueDate && (
+                    <p className="text-xs text-orange-500 mt-0.5">
+                      {new Date(detail.oldestOverdueDate).toLocaleDateString('tr-TR')}'den beri
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -212,6 +227,7 @@ export default function WholesalerCredit() {
                         <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Açıklama</th>
                         <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Vade</th>
                         <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Tutar</th>
+                        <th className="text-right px-4 py-2 text-xs font-medium text-gray-500">Kalan</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
@@ -224,6 +240,9 @@ export default function WholesalerCredit() {
                             <td className="px-4 py-2.5">
                               <span className="text-gray-900">{tx.description}</span>
                               <span className={`text-xs ml-2 ${color}`}>{label}</span>
+                              {tx.isFullyAllocated && tx.type !== 'Payment' && (
+                                <span className="text-xs ml-1 text-green-500">✓</span>
+                              )}
                             </td>
                             <td className="px-4 py-2.5 text-xs">
                               {tx.dueDate
@@ -235,6 +254,14 @@ export default function WholesalerCredit() {
                             </td>
                             <td className={`px-4 py-2.5 text-right font-semibold ${color}`}>
                               {sign}₺{tx.amount.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-2.5 text-right text-xs">
+                              {tx.type !== 'Payment'
+                                ? <span className={tx.remainingAmount > 0 ? 'text-orange-600 font-medium' : 'text-gray-300'}>
+                                    ₺{tx.remainingAmount.toFixed(2)}
+                                  </span>
+                                : <span className="text-gray-300">—</span>
+                              }
                             </td>
                           </tr>
                         )
