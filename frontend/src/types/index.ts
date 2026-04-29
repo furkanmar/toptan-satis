@@ -217,3 +217,58 @@ export interface NotificationLogPage {
   page: number
   pageSize: number
 }
+
+// ─── Sevk İrsaliyesi ─────────────────────────────────────────────────────────
+
+export type DeliveryNoteStatus = 'Draft' | 'Issued' | 'Cancelled'
+
+export interface DeliveryNoteItem {
+  id: string
+  productId: string
+  productName: string
+  productBrand?: string
+  unitType: string
+  contentQty: number
+  unitPrice: number
+  vatRate: number
+  quantityOrdered: number
+  quantityShipped: number
+  lineTotal: number
+}
+
+export interface DeliveryNote {
+  id: string
+  noteNumber: string
+  orderId: string
+  wholesalerId: string
+  wholesalerName: string
+  storeId: string
+  storeName: string
+  status: DeliveryNoteStatus
+  issueDate: string
+  vehiclePlate?: string
+  driverName?: string
+  sourceAddress?: string
+  destinationAddress?: string
+  notes?: string
+  ettn?: string
+  eInvoiceProvider?: string
+  eInvoiceStatus?: string
+  createdAt: string
+  cancelledAt?: string
+  cancelReason?: string
+  items: DeliveryNoteItem[]
+}
+
+export interface DeliveryNoteListItem {
+  id: string
+  noteNumber: string
+  orderId: string
+  storeName: string
+  wholesalerName: string
+  status: DeliveryNoteStatus
+  issueDate: string
+  createdAt: string
+  itemCount: number
+  totalAmount: number
+}

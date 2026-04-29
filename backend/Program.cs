@@ -111,6 +111,8 @@ builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
+builder.Services.AddScoped<IDeliveryNoteService, DeliveryNoteService>();
+builder.Services.AddScoped<DeliveryNotePdfService>();
 builder.Services.AddScoped<OrderService>();
 
 // CORS — React dev + production

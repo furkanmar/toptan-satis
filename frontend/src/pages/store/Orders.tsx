@@ -1,8 +1,19 @@
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Layout from '../../components/Layout'
-import { ordersApi } from '../../api/client'
+import { toast } from 'sonner'
+import { ordersApi, deliveryNotesApi } from '../../api/client'
 import type { Order } from '../../types'
+
+async function openPdfBlob(url: string) {
+  const token = localStorage.getItem('token')
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) { toast.error('PDF indirilemedi'); return }
+  const blob = await res.blob()
+  const blobUrl = URL.createObjectURL(blob)
+  window.open(blobUrl, '_blank')
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000)
+}
 
 const NAV = (wholesalerId: string) => [
   { to: `/store/${wholesalerId}`, label: 'Ürünler' },
@@ -78,7 +89,17 @@ export default function StoreOrders() {
                     {order.note && <p className="text-xs text-gray-400">Notunuz: {order.note}</p>}
                     {order.wholesalerNote && <p className="text-xs text-blue-600">Toptancı notu: {order.wholesalerNote}</p>}
                   </div>
-                  <span className="font-semibold text-gray-900">₺{order.totalAmount.toFixed(2)}</span>
+                  <div className="flex items-center gap-3">
+                    {order.status === 'Delivered' && (
+                      <button
+                        onClick={() => openPdfBlob(deliveryNotesApi.getPdfUrlByOrderForStore(order.id))}
+                        className="px-3 py-1 text-xs bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium border border-green-200"
+                      >
+                        📄 İrsaliye PDF
+                      </button>
+                    )}
+                    <span className="font-semibold text-gray-900">₺{order.totalAmount.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
             )

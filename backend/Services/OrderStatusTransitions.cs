@@ -9,7 +9,7 @@ public static class OrderStatusTransitions
     {
         [OrderStatus.Pending]   = [OrderStatus.Confirmed, OrderStatus.Rejected, OrderStatus.Cancelled],
         [OrderStatus.Confirmed] = [OrderStatus.Delivered, OrderStatus.Cancelled],
-        [OrderStatus.Delivered] = [],   // terminal
+        [OrderStatus.Delivered] = [OrderStatus.Confirmed],   // revert allowed via delivery note cancellation
         [OrderStatus.Rejected]  = [],   // terminal
         [OrderStatus.Cancelled] = [],   // terminal
     };

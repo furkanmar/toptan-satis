@@ -15,6 +15,7 @@ import WholesalerOrders from './pages/wholesaler/Orders'
 import WholesalerCredit from './pages/wholesaler/Credit'
 import WholesalerSettings from './pages/wholesaler/Settings'
 import WholesalerStockMovements from './pages/wholesaler/StockMovements'
+import WholesalerDeliveryNotes from './pages/wholesaler/DeliveryNotes'
 
 // Admin sayfaları
 import AdminDashboard from './pages/admin/Dashboard'
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="/wholesaler/credit" element={<RequireAuth roles={['Wholesaler']}><WholesalerCredit /></RequireAuth>} />
         <Route path="/wholesaler/settings" element={<RequireAuth roles={['Wholesaler']}><WholesalerSettings /></RequireAuth>} />
         <Route path="/wholesaler/stock-movements" element={<RequireAuth roles={['Wholesaler']}><WholesalerStockMovements /></RequireAuth>} />
+        <Route path="/wholesaler/delivery-notes" element={<RequireAuth roles={['Wholesaler']}><WholesalerDeliveryNotes /></RequireAuth>} />
 
         {/* Admin */}
         <Route path="/admin" element={<RequireAuth roles={['Admin']}><AdminDashboard /></RequireAuth>} />

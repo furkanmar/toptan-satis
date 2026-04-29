@@ -177,6 +177,28 @@ export const usersApi = {
     api.get('/users/me/notifications', { params }).then(r => r.data),
 }
 
+// ─── Delivery Notes ───────────────────────────────────────────────────────────
+export const deliveryNotesApi = {
+  // Toptancı
+  create: (orderId: string, data: unknown) =>
+    api.post(`/delivery-notes/orders/${orderId}`, data).then(r => r.data),
+  getList: (params?: { storeId?: string; from?: string; to?: string; status?: string }) =>
+    api.get('/delivery-notes', { params }).then(r => r.data),
+  getById: (noteId: string) =>
+    api.get(`/delivery-notes/${noteId}`).then(r => r.data),
+  getPdfUrl: (noteId: string) =>
+    `${api.defaults.baseURL}/delivery-notes/${noteId}/pdf`,
+  cancel: (noteId: string, data: { cancelReason?: string }) =>
+    api.post(`/delivery-notes/${noteId}/cancel`, data).then(r => r.data),
+  // Mağaza
+  getForStore: (params?: { from?: string; to?: string; status?: string }) =>
+    api.get('/delivery-notes/store', { params }).then(r => r.data),
+  getPdfUrlForStore: (noteId: string) =>
+    `${api.defaults.baseURL}/delivery-notes/${noteId}/pdf/store`,
+  getPdfUrlByOrderForStore: (orderId: string): string =>
+    `${api.defaults.baseURL}/delivery-notes/by-order/${orderId}/pdf/store`,
+}
+
 // ─── Admin ───────────────────────────────────────────────────────────────────
 export const adminApi = {
   getUsers: () =>

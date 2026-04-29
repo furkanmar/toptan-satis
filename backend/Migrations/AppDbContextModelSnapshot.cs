@@ -22,6 +22,132 @@ namespace WholesaleApi.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.HasSequence<long>("delivery_note_seq");
+
+            modelBuilder.Entity("WholesaleApi.Entities.DeliveryNote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("CancelReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("DestinationAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DriverName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EInvoiceProvider")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EInvoiceRawResponse")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("EInvoiceStatus")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Ettn")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("IssueDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("NoteNumber")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceAddress")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("StoreId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("VehiclePlate")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("WholesalerId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NoteNumber")
+                        .IsUnique()
+                        .HasDatabaseName("IX_DeliveryNotes_NoteNumber");
+
+                    b.HasIndex("OrderId")
+                        .HasDatabaseName("IX_DeliveryNotes_OrderId");
+
+                    b.HasIndex("WholesalerId", "IssueDate")
+                        .HasDatabaseName("IX_DeliveryNotes_WholesalerId_IssueDate");
+
+                    b.ToTable("DeliveryNotes");
+                });
+
+            modelBuilder.Entity("WholesaleApi.Entities.DeliveryNoteItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ContentQty")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("DeliveryNoteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProductBrand")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("QuantityOrdered")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("QuantityShipped")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("UnitType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("VatRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeliveryNoteId");
+
+                    b.ToTable("DeliveryNoteItems");
+                });
+
             modelBuilder.Entity("WholesaleApi.Entities.AuditLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -638,6 +764,9 @@ namespace WholesaleApi.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("text");
 
+                    b.Property<string>("CompanyAddress")
+                        .HasColumnType("text");
+
                     b.Property<string>("CompanyName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -652,6 +781,9 @@ namespace WholesaleApi.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<string>("Phone")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TaxNumber")
                         .HasColumnType("text");
 
                     b.Property<Guid>("UserId")
@@ -672,6 +804,42 @@ namespace WholesaleApi.Migrations
                         .HasForeignKey("WholesalerId");
 
                     b.Navigation("Wholesaler");
+                });
+
+            modelBuilder.Entity("WholesaleApi.Entities.DeliveryNote", b =>
+                {
+                    b.HasOne("WholesaleApi.Entities.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WholesaleApi.Entities.Wholesaler", "Wholesaler")
+                        .WithMany()
+                        .HasForeignKey("WholesalerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WholesaleApi.Entities.Store", "Store")
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                    b.Navigation("Store");
+                    b.Navigation("Wholesaler");
+                });
+
+            modelBuilder.Entity("WholesaleApi.Entities.DeliveryNoteItem", b =>
+                {
+                    b.HasOne("WholesaleApi.Entities.DeliveryNote", "DeliveryNote")
+                        .WithMany("Items")
+                        .HasForeignKey("DeliveryNoteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DeliveryNote");
                 });
 
             modelBuilder.Entity("WholesaleApi.Entities.CreditTransaction", b =>
@@ -863,6 +1031,11 @@ namespace WholesaleApi.Migrations
             modelBuilder.Entity("WholesaleApi.Entities.Category", b =>
                 {
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("WholesaleApi.Entities.DeliveryNote", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("WholesaleApi.Entities.CreditTransaction", b =>

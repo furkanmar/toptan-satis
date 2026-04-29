@@ -8,6 +8,8 @@ public class Wholesaler
     public string? Phone { get; set; }
     public string? Address { get; set; }
     public string? Description { get; set; }
+    public string? TaxNumber { get; set; }
+    public string? CompanyAddress { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

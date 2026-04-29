@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import Layout from '../../components/Layout'
-import { ordersApi } from '../../api/client'
+import { ordersApi, deliveryNotesApi } from '../../api/client'
 import type { Order, OrderItem } from '../../types'
 
 const NAV = [
   { to: '/wholesaler', label: 'Ana Sayfa' },
   { to: '/wholesaler/products', label: 'Ürünler' },
   { to: '/wholesaler/orders', label: 'Siparişler' },
+  { to: '/wholesaler/delivery-notes', label: 'İrsaliyeler' },
   { to: '/wholesaler/credit', label: 'Veresiye' },
   { to: '/wholesaler/settings', label: 'Ayarlar' }
 ]
@@ -35,6 +36,15 @@ export default function WholesalerOrders() {
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null)
   const [editItems, setEditItems] = useState<EditItem[]>([])
   const [editNote, setEditNote] = useState('')
+  const [deliveryModal, setDeliveryModal] = useState<Order | null>(null)
+  const [deliveryForm, setDeliveryForm] = useState({
+    issueDate: new Date().toISOString().split('T')[0],
+    vehiclePlate: '',
+    driverName: '',
+    sourceAddress: '',
+    destinationAddress: '',
+    notes: '',
+  })
 
   const { data: orders = [], isLoading } = useQuery<Order[]>({
     queryKey: ['incoming-orders'],
@@ -90,6 +100,29 @@ export default function WholesalerOrders() {
   const deliverMutation = useMutation({
     mutationFn: (id: string) => ordersApi.updateStatus(id, 'Delivered'),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['incoming-orders'] })
+  })
+
+  const createDeliveryNoteMutation = useMutation({
+    mutationFn: (orderId: string) =>
+      deliveryNotesApi.create(orderId, {
+        issueDate: deliveryForm.issueDate,
+        vehiclePlate: deliveryForm.vehiclePlate || undefined,
+        driverName: deliveryForm.driverName || undefined,
+        sourceAddress: deliveryForm.sourceAddress || undefined,
+        destinationAddress: deliveryForm.destinationAddress || undefined,
+        notes: deliveryForm.notes || undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['incoming-orders'] })
+      qc.invalidateQueries({ queryKey: ['delivery-notes'] })
+      setDeliveryModal(null)
+      setDeliveryForm({ issueDate: new Date().toISOString().split('T')[0], vehiclePlate: '', driverName: '', sourceAddress: '', destinationAddress: '', notes: '' })
+      toast.success('Sevk irsaliyesi oluşturuldu, sipariş teslim edildi.')
+    },
+    onError: (e: unknown) => {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(msg ?? 'İrsaliye oluşturulamadı')
+    },
   })
 
   const updateItemsMutation = useMutation({
@@ -294,11 +327,10 @@ export default function WholesalerOrders() {
                           )}
                           {order.status === 'Confirmed' && (
                             <button
-                              onClick={() => deliverMutation.mutate(order.id)}
-                              disabled={deliverMutation.isPending}
+                              onClick={() => setDeliveryModal(order)}
                               className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 transition-colors"
                             >
-                              Teslim Edildi
+                              📄 Sevk İrsaliyesi
                             </button>
                           )}
                         </div>
@@ -340,6 +372,95 @@ export default function WholesalerOrders() {
               </button>
               <button
                 onClick={() => setStockWarning(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+              >
+                İptal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sevk İrsaliyesi Oluştur Modal */}
+      {deliveryModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="font-bold text-gray-900 mb-1">Sevk İrsaliyesi Oluştur</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              {deliveryModal.storeName} — ₺{deliveryModal.totalAmount.toFixed(2)}
+              <span className="ml-2 text-xs text-amber-600 font-medium">Sipariş "Teslim Edildi"ye geçecek</span>
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">İrsaliye Tarihi</label>
+                <input
+                  type="date"
+                  value={deliveryForm.issueDate}
+                  onChange={e => setDeliveryForm(f => ({ ...f, issueDate: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Araç Plakası</label>
+                  <input
+                    value={deliveryForm.vehiclePlate}
+                    onChange={e => setDeliveryForm(f => ({ ...f, vehiclePlate: e.target.value.toUpperCase() }))}
+                    placeholder="34 ABC 123"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Sürücü Adı</label>
+                  <input
+                    value={deliveryForm.driverName}
+                    onChange={e => setDeliveryForm(f => ({ ...f, driverName: e.target.value }))}
+                    placeholder="Ad Soyad"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Gönderim Adresi</label>
+                <input
+                  value={deliveryForm.sourceAddress}
+                  onChange={e => setDeliveryForm(f => ({ ...f, sourceAddress: e.target.value }))}
+                  placeholder="Opsiyonel (boş bırakılırsa toptancı adresi kullanılır)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Teslimat Adresi</label>
+                <input
+                  value={deliveryForm.destinationAddress}
+                  onChange={e => setDeliveryForm(f => ({ ...f, destinationAddress: e.target.value }))}
+                  placeholder="Opsiyonel (boş bırakılırsa mağaza adresi kullanılır)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Notlar</label>
+                <textarea
+                  value={deliveryForm.notes}
+                  onChange={e => setDeliveryForm(f => ({ ...f, notes: e.target.value }))}
+                  rows={2}
+                  placeholder="İrsaliye notu..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => createDeliveryNoteMutation.mutate(deliveryModal.id)}
+                disabled={createDeliveryNoteMutation.isPending || !deliveryForm.issueDate}
+                className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {createDeliveryNoteMutation.isPending ? 'Oluşturuluyor...' : 'İrsaliye Oluştur & Teslim Et'}
+              </button>
+              <button
+                onClick={() => setDeliveryModal(null)}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
               >
                 İptal

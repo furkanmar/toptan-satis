@@ -22,6 +22,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
     public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
+    public DbSet<DeliveryNote> DeliveryNotes => Set<DeliveryNote>();
+    public DbSet<DeliveryNoteItem> DeliveryNoteItems => Set<DeliveryNoteItem>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -202,5 +204,60 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         mb.Entity<NotificationLog>()
             .HasIndex(nl => nl.Status)
             .HasDatabaseName("IX_NotificationLogs_Status");
+
+        // DeliveryNote — PostgreSQL sequence for note numbering
+        mb.HasSequence<long>("delivery_note_seq").StartsAt(1).IncrementsBy(1);
+
+        mb.Entity<DeliveryNote>()
+            .Property(dn => dn.Status).HasConversion<string>();
+
+        mb.Entity<DeliveryNote>()
+            .Property(dn => dn.EInvoiceRawResponse).HasColumnType("jsonb");
+
+        mb.Entity<DeliveryNote>()
+            .HasIndex(dn => dn.NoteNumber).IsUnique()
+            .HasDatabaseName("IX_DeliveryNotes_NoteNumber");
+
+        mb.Entity<DeliveryNote>()
+            .HasIndex(dn => new { dn.WholesalerId, dn.IssueDate })
+            .HasDatabaseName("IX_DeliveryNotes_WholesalerId_IssueDate");
+
+        mb.Entity<DeliveryNote>()
+            .HasIndex(dn => dn.OrderId)
+            .HasDatabaseName("IX_DeliveryNotes_OrderId");
+
+        mb.Entity<DeliveryNote>()
+            .HasOne(dn => dn.Order)
+            .WithMany()
+            .HasForeignKey(dn => dn.OrderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        mb.Entity<DeliveryNote>()
+            .HasOne(dn => dn.Wholesaler)
+            .WithMany()
+            .HasForeignKey(dn => dn.WholesalerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        mb.Entity<DeliveryNote>()
+            .HasOne(dn => dn.Store)
+            .WithMany()
+            .HasForeignKey(dn => dn.StoreId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // DeliveryNoteItem
+        mb.Entity<DeliveryNoteItem>()
+            .Property(i => i.UnitPrice).HasPrecision(18, 2);
+
+        mb.Entity<DeliveryNoteItem>()
+            .Property(i => i.VatRate).HasPrecision(5, 2);
+
+        mb.Entity<DeliveryNoteItem>()
+            .Ignore(i => i.LineTotal);
+
+        mb.Entity<DeliveryNoteItem>()
+            .HasOne(i => i.DeliveryNote)
+            .WithMany(dn => dn.Items)
+            .HasForeignKey(i => i.DeliveryNoteId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
