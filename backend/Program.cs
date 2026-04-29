@@ -123,7 +123,13 @@ builder.Services.AddCors(opt =>
         policy
             .WithOrigins(
                 "http://localhost:5173",           // Vite dev
+                "http://localhost:8080",           // Flutter web dev
+                "http://localhost:53890",          // Flutter web (random port)
                 "https://wholesale.marifoglu.trade" // production
+            )
+            .SetIsOriginAllowed(origin =>
+                origin.StartsWith("http://localhost") ||
+                origin == "https://wholesale.marifoglu.trade"
             )
             .AllowAnyHeader()
             .AllowAnyMethod()

@@ -1,0 +1,54 @@
+name: marifoglu_store
+description: Marifoglu B2B Toptan Sipariş Uygulaması
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP
+  dio: ^5.4.3+1
+
+  # State management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Navigation
+  go_router: ^14.2.0
+
+  # Storage
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.2.3
+
+  # Barkod
+  mobile_scanner: ^5.1.1
+
+  # URL aç (irsaliye PDF)
+  url_launcher: ^6.3.0
+
+  # UUID (idempotency key)
+  uuid: ^4.4.0
+
+  # Shimmer loading
+  shimmer: ^3.0.0
+
+  # Tarih formatlama (Türkçe locale)
+  intl: ^0.19.0
+
+  # İkonlar
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
