@@ -40,9 +40,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             _passwordCtrl.text,
           );
     } on DioException catch (e) {
+      if (!mounted) return;
       setState(() => _errorMsg = (e.error as AppException?)?.message ??
           'Giriş başarısız. Bilgilerinizi kontrol edin.');
     } catch (_) {
+      if (!mounted) return;
       setState(() => _errorMsg = 'Beklenmeyen bir hata oluştu.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
