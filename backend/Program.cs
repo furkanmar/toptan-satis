@@ -102,6 +102,7 @@ builder.Services.AddScoped<NotificationService>();
 
 // ─── Background jobs ─────────────────────────────────────────────────────────
 builder.Services.AddHostedService<IdempotencyCleanupService>();
+builder.Services.AddHostedService<OverdueAlertService>();
 
 // App services
 builder.Services.AddScoped<TokenService>();
@@ -109,6 +110,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<IStockService, StockService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<ICreditService, CreditService>();
 builder.Services.AddScoped<OrderService>();
 
 // CORS — React dev + production

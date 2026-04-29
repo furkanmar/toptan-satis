@@ -21,6 +21,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
     public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
+    public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -96,13 +97,51 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         // CreditTransaction
         mb.Entity<CreditTransaction>().Property(c => c.Amount).HasPrecision(18, 2);
+        mb.Entity<CreditTransaction>().Property(c => c.AllocatedAmount).HasPrecision(18, 2);
         mb.Entity<CreditTransaction>().Property(c => c.Type).HasConversion<string>();
+
+        // RemainingAmount hesaplanan property — DB'ye yazılmaz
+        mb.Entity<CreditTransaction>().Ignore(c => c.RemainingAmount);
+
+        // Optimistic concurrency — PostgreSQL xmin (fiziksel kolon eklemez)
+        mb.Entity<CreditTransaction>()
+            .Property<uint>("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
+
+        mb.Entity<CreditTransaction>()
+            .HasIndex(c => new { c.StoreId, c.WholesalerId, c.IsFullyAllocated, c.CreatedAt })
+            .HasDatabaseName("IX_CreditTransactions_StoreWholesaler_Allocation");
 
         mb.Entity<CreditTransaction>()
             .HasOne(c => c.Order)
             .WithMany(o => o.CreditTransactions)
             .HasForeignKey(c => c.OrderId)
             .IsRequired(false);
+
+        // PaymentAllocation
+        mb.Entity<PaymentAllocation>().Property(pa => pa.AllocatedAmount).HasPrecision(18, 2);
+
+        mb.Entity<PaymentAllocation>()
+            .HasOne(pa => pa.PaymentTransaction)
+            .WithMany(ct => ct.PaymentAllocations)
+            .HasForeignKey(pa => pa.PaymentTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        mb.Entity<PaymentAllocation>()
+            .HasOne(pa => pa.DebitTransaction)
+            .WithMany(ct => ct.DebitAllocations)
+            .HasForeignKey(pa => pa.DebitTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        mb.Entity<PaymentAllocation>()
+            .HasIndex(pa => pa.PaymentTransactionId)
+            .HasDatabaseName("IX_PaymentAllocations_PaymentTransactionId");
+
+        mb.Entity<PaymentAllocation>()
+            .HasIndex(pa => pa.DebitTransactionId)
+            .HasDatabaseName("IX_PaymentAllocations_DebitTransactionId");
 
         // StockMovement — append-only ledger
         mb.Entity<StockMovement>()

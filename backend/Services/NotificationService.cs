@@ -137,6 +137,33 @@ public class NotificationService(
             $"Minimum eşik: {product.MinimumStockLevel}");
     }
 
+    // ─── Credit events ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Vadesi geçen borç için toptancıya bildirim.
+    /// OverdueAlertService tarafından sadece bir kez çağrılır (LastOverdueNotifiedAt koruması).
+    /// </summary>
+    public async Task OverdueDebitAsync(
+        Guid wholesalerId,
+        string storeName,
+        decimal remainingAmount,
+        DateTime dueDate)
+    {
+        var wholesalerUserId = await db.Wholesalers
+            .Where(w => w.Id == wholesalerId)
+            .Select(w => w.UserId)
+            .FirstOrDefaultAsync();
+
+        var chatId = await GetChatIdAsync(wholesalerUserId);
+        if (chatId is null) return;
+
+        await telegram.SendMessageAsync(chatId,
+            $"⏰ <b>Vadesi Geçen Alacak</b>\n" +
+            $"Mağaza: <b>{storeName}</b>\n" +
+            $"Kalan tutar: <b>{remainingAmount:N2} ₺</b>\n" +
+            $"Vade tarihi: {dueDate:dd.MM.yyyy}");
+    }
+
     // ─── Helper ───────────────────────────────────────────────────────────────
 
     private async Task<string?> GetChatIdAsync(Guid userId)

@@ -11,6 +11,7 @@ public class OrderService(
     AppDbContext db,
     IStockService stockService,
     IAuditService auditService,
+    ICreditService creditService,
     NotificationService notifications,
     IHttpContextAccessor httpContextAccessor,
     IServiceScopeFactory scopeFactory,
@@ -165,16 +166,13 @@ public class OrderService(
 
         if (dto.CreateCreditEntry)
         {
-            db.CreditTransactions.Add(new CreditTransaction
-            {
-                StoreId = order.StoreId,
-                WholesalerId = wholesalerId,
-                Type = CreditTransactionType.OrderDebit,
-                Amount = order.TotalAmount,
-                Description = $"Sipariş #{order.Id.ToString()[..8].ToUpper()}",
-                DueDate = dto.DueDate,
-                OrderId = order.Id
-            });
+            await creditService.RecordOrderDebitAsync(
+                storeId: order.StoreId,
+                wholesalerId: wholesalerId,
+                amount: order.TotalAmount,
+                description: $"Sipariş #{order.Id.ToString()[..8].ToUpper()}",
+                dueDate: dto.DueDate,
+                orderId: order.Id);
         }
 
         auditService.LogAction(
