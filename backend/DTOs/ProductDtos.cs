@@ -36,6 +36,7 @@ public class ProductUnitConfigDto
     public int ContentQty { get; set; }
     public decimal Price { get; set; }
     public int SortOrder { get; set; }
+    public bool IsActive { get; set; }
     public List<ProductBarcodeDto> Barcodes { get; set; } = [];
 }
 
@@ -95,6 +96,7 @@ public class UpdateUnitConfigDto
     public int? ContentQty { get; set; }
     public decimal? Price { get; set; }
     public int? SortOrder { get; set; }
+    public bool? IsActive { get; set; }
 }
 
 public class AddProductBarcodeDto

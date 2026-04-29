@@ -39,7 +39,8 @@ public class ProductService(
         if (lowStock) q = q.Where(p => p.MinimumStockLevel.HasValue && p.Stock <= p.MinimumStockLevel.Value);
 
         var list = await q.OrderBy(p => p.Name).ToListAsync();
-        var tasks = list.Select(p => MapDtoAsync(p));
+        // Mağaza görünümünde (includeInactive=false) pasif unit config'ler gizlenir
+        var tasks = list.Select(p => MapDtoAsync(p, showInactiveConfigs: includeInactive));
         return (await Task.WhenAll(tasks)).ToList();
     }
 
@@ -140,6 +141,7 @@ public class ProductService(
         if (dto.ContentQty.HasValue) config.ContentQty = dto.ContentQty.Value;
         if (dto.Price.HasValue) config.Price = dto.Price.Value;
         if (dto.SortOrder.HasValue) config.SortOrder = dto.SortOrder.Value;
+        if (dto.IsActive.HasValue) config.IsActive = dto.IsActive.Value;
 
         await db.SaveChangesAsync();
         return MapUnitConfigDto(config);
@@ -302,7 +304,7 @@ public class ProductService(
     private string? CurrentIp =>
         http.HttpContext?.Connection.RemoteIpAddress?.ToString();
 
-    private async Task<ProductDto> MapDtoAsync(Product p)
+    private async Task<ProductDto> MapDtoAsync(Product p, bool showInactiveConfigs = true)
     {
         var images = new List<ProductImageDto>();
         foreach (var i in p.Images.OrderByDescending(x => x.IsMain))
@@ -335,7 +337,10 @@ public class ProductService(
             MinimumStockLevel = p.MinimumStockLevel,
             CreatedAt = p.CreatedAt,
             Images = images,
-            UnitConfigs = p.UnitConfigs.OrderBy(u => u.SortOrder).Select(MapUnitConfigDto).ToList()
+            UnitConfigs = p.UnitConfigs
+                .OrderBy(u => u.SortOrder)
+                .Where(u => showInactiveConfigs || u.IsActive)
+                .Select(MapUnitConfigDto).ToList()
         };
     }
 
@@ -346,6 +351,7 @@ public class ProductService(
         ContentQty = u.ContentQty,
         Price = u.Price,
         SortOrder = u.SortOrder,
+        IsActive = u.IsActive,
         Barcodes = u.Barcodes.Select(b => new ProductBarcodeDto { Id = b.Id, Barcode = b.Barcode, Note = b.Note }).ToList()
     };
 }

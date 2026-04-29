@@ -14,6 +14,12 @@ public class ProductUnitConfig
     public decimal Price { get; set; }               // Bu birim tipinin fiyatı
     public int SortOrder { get; set; } = 0;          // Listeleme sırası (küçük → büyük)
 
+    /// <summary>
+    /// false → bu birim tipi geçici olarak satışa kapalı.
+    /// Mağazalara gösterilmez; toptancı panelinde görünür ve yönetilebilir.
+    /// </summary>
+    public bool IsActive { get; set; } = true;
+
     // Navigation
     public Product Product { get; set; } = null!;
     public ICollection<ProductBarcode> Barcodes { get; set; } = [];

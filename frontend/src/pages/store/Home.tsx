@@ -17,11 +17,23 @@ type ViewMode = 'card' | 'list'
 type SortKey = 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc'
 
 // ─── Ürün kartı ───────────────────────────────────────────────────────────────
-function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product, uc: ProductUnitConfig) => void }) {
-  const configs = product.unitConfigs
+function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product, uc: ProductUnitConfig, qty: number) => void }) {
+  const configs = product.unitConfigs.filter(c => c.isActive)
   const [selectedId, setSelectedId] = useState(configs[0]?.id ?? '')
+  const [qty, setQty] = useState(1)
   const selected = configs.find(c => c.id === selectedId) ?? configs[0]
   const mainImg = product.images.find(i => i.isMain) ?? product.images[0]
+
+  // Birim değişince qty sıfırla
+  const handleSelectConfig = (id: string) => { setSelectedId(id); setQty(1) }
+
+  const handleAdd = () => {
+    if (!selected) return
+    onAdd(product, selected, qty)
+    setQty(1)
+  }
+
+  if (configs.length === 0) return null
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
@@ -36,12 +48,13 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product,
           <p className="text-xs text-gray-400 truncate">{[product.brand, product.manufacturer].filter(Boolean).join(' · ')}</p>
         )}
 
+        {/* Birim seçimi */}
         {configs.length > 1 && (
           <div className="flex gap-1 mt-2 flex-wrap">
             {configs.map(c => (
-              <button key={c.id} onClick={() => setSelectedId(c.id)}
+              <button key={c.id} onClick={() => handleSelectConfig(c.id)}
                 className={`px-2 py-0.5 rounded text-xs border transition-colors ${c.id === selectedId ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-500 hover:border-blue-400'}`}>
-                {c.unitType}
+                {c.unitType}{c.contentQty > 1 ? ` ×${c.contentQty}` : ''}
               </button>
             ))}
           </div>
@@ -57,11 +70,24 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product,
             </p>
           )}
           <p className="text-xs text-gray-400 mb-2">Stok: {product.stock} · Min: {product.minOrderQty}</p>
-          <button onClick={() => selected && onAdd(product, selected)}
-            disabled={product.stock === 0 || !selected}
-            className="w-full py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-40 transition-colors">
-            {product.stock === 0 ? 'Stok Yok' : '+ Sepete Ekle'}
-          </button>
+
+          {/* Miktar + sepete ekle */}
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+              <button onClick={() => setQty(q => Math.max(1, q - 1))}
+                className="w-7 h-7 bg-gray-50 hover:bg-gray-100 text-gray-600 text-sm flex items-center justify-center transition-colors">−</button>
+              <input type="number" min={1} value={qty}
+                onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v) && v > 0) setQty(v) }}
+                className="w-9 text-center text-xs border-0 focus:outline-none py-0.5" />
+              <button onClick={() => setQty(q => q + 1)}
+                className="w-7 h-7 bg-gray-50 hover:bg-gray-100 text-gray-600 text-sm flex items-center justify-center transition-colors">+</button>
+            </div>
+            <button onClick={handleAdd}
+              disabled={product.stock === 0 || !selected}
+              className="flex-1 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-40 transition-colors">
+              {product.stock === 0 ? 'Stok Yok' : '+ Ekle'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -69,11 +95,22 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product,
 }
 
 // ─── Ürün liste satırı ────────────────────────────────────────────────────────
-function ProductRow({ product, onAdd }: { product: Product; onAdd: (p: Product, uc: ProductUnitConfig) => void }) {
-  const configs = product.unitConfigs
+function ProductRow({ product, onAdd }: { product: Product; onAdd: (p: Product, uc: ProductUnitConfig, qty: number) => void }) {
+  const configs = product.unitConfigs.filter(c => c.isActive)
   const [selectedId, setSelectedId] = useState(configs[0]?.id ?? '')
+  const [qty, setQty] = useState(1)
   const selected = configs.find(c => c.id === selectedId) ?? configs[0]
   const mainImg = product.images.find(i => i.isMain) ?? product.images[0]
+
+  const handleSelectConfig = (id: string) => { setSelectedId(id); setQty(1) }
+
+  const handleAdd = () => {
+    if (!selected) return
+    onAdd(product, selected, qty)
+    setQty(1)
+  }
+
+  if (configs.length === 0) return null
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl flex items-center gap-3 px-4 py-3 hover:shadow-sm transition-shadow">
@@ -89,8 +126,9 @@ function ProductRow({ product, onAdd }: { product: Product; onAdd: (p: Product, 
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+        {/* Birim seçimi */}
         {configs.length > 1 && (
-          <select value={selectedId} onChange={e => setSelectedId(e.target.value)}
+          <select value={selectedId} onChange={e => handleSelectConfig(e.target.value)}
             className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
             {configs.map(c => <option key={c.id} value={c.id}>{c.unitType}{c.contentQty > 1 ? ` ×${c.contentQty}` : ''}</option>)}
           </select>
@@ -104,7 +142,17 @@ function ProductRow({ product, onAdd }: { product: Product; onAdd: (p: Product, 
         <span className={`text-xs px-2 py-0.5 rounded-full ${product.stock <= 0 ? 'bg-red-100 text-red-600' : product.stock <= 10 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
           {product.stock <= 0 ? 'Yok' : product.stock}
         </span>
-        <button onClick={() => selected && onAdd(product, selected)}
+        {/* Miktar */}
+        <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+          <button onClick={() => setQty(q => Math.max(1, q - 1))}
+            className="w-6 h-7 bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs flex items-center justify-center transition-colors">−</button>
+          <input type="number" min={1} value={qty}
+            onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v) && v > 0) setQty(v) }}
+            className="w-8 text-center text-xs border-0 focus:outline-none py-0.5" />
+          <button onClick={() => setQty(q => q + 1)}
+            className="w-6 h-7 bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs flex items-center justify-center transition-colors">+</button>
+        </div>
+        <button onClick={handleAdd}
           disabled={product.stock === 0 || !selected}
           className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-40 transition-colors">
           + Ekle
@@ -259,11 +307,17 @@ export default function StoreHome() {
             </div>
           ) : viewMode === 'card' ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {products.map(p => <ProductCard key={p.id} product={p} onAdd={addItem} />)}
+              {products.map(p => (
+                <ProductCard key={p.id} product={p}
+                  onAdd={(prod, uc, qty) => addItem(prod, uc, qty)} />
+              ))}
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {products.map(p => <ProductRow key={p.id} product={p} onAdd={addItem} />)}
+              {products.map(p => (
+                <ProductRow key={p.id} product={p}
+                  onAdd={(prod, uc, qty) => addItem(prod, uc, qty)} />
+              ))}
             </div>
           )}
         </div>

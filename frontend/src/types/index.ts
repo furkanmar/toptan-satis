@@ -20,6 +20,7 @@ export interface ProductUnitConfig {
   contentQty: number       // kaç temel birim içeriyor
   price: number
   sortOrder: number
+  isActive: boolean
   barcodes: ProductBarcode[]
 }
 

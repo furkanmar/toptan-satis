@@ -55,15 +55,15 @@ export default function WholesalerOrders() {
         createCreditEntry: confirmForm.createCreditEntry,
         forceConfirm: force
       }),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['incoming-orders'] })
       qc.invalidateQueries({ queryKey: ['credit-all-stores'] })
       setConfirmModal(null)
       setConfirmForm({ wholesalerNote: '', dueDate: '', createCreditEntry: true })
-    },
-    onSuccess: (_data, variables) => {
       if (variables.force) {
         toast.success('Sipariş onaylandı. Negatif stok kaydı oluşturuldu — stok hareketleri sayfasından görebilirsiniz.')
+      } else {
+        toast.success('Sipariş onaylandı.')
       }
     },
     onError: (err: unknown, variables) => {

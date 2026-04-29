@@ -141,6 +141,11 @@ function UnitConfigRow({ productId, config, onChanged }: UnitConfigRowProps) {
     onSuccess: () => { setEditing(false); refresh() }
   })
 
+  const toggleActive = useMutation({
+    mutationFn: () => productsApi.updateUnitConfig(productId, config.id, { isActive: !config.isActive }),
+    onSuccess: refresh
+  })
+
   const deleteConfig = useMutation({
     mutationFn: () => productsApi.deleteUnitConfig(productId, config.id),
     onSuccess: refresh
@@ -211,12 +216,31 @@ function UnitConfigRow({ productId, config, onChanged }: UnitConfigRowProps) {
       ) : (
         <div className="flex items-center gap-3">
           <div className="flex-1 flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded">{config.unitType}</span>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded ${config.isActive ? 'bg-gray-100 text-gray-700' : 'bg-orange-100 text-orange-700 line-through'}`}>
+              {config.unitType}
+            </span>
+            {!config.isActive && (
+              <span className="text-xs text-orange-500 font-medium">Pasif</span>
+            )}
             {config.contentQty > 1 && (
               <span className="text-xs text-gray-500">{config.contentQty} adet içerir</span>
             )}
-            <span className="text-sm font-medium text-gray-900">₺{config.price.toFixed(2)}</span>
+            <span className={`text-sm font-medium ${config.isActive ? 'text-gray-900' : 'text-gray-400'}`}>
+              ₺{config.price.toFixed(2)}
+            </span>
           </div>
+          <button
+            onClick={() => toggleActive.mutate()}
+            disabled={toggleActive.isPending}
+            title={config.isActive ? 'Satışı durdur' : 'Satışa aç'}
+            className={`text-xs px-2 py-1 rounded transition-colors disabled:opacity-50 ${
+              config.isActive
+                ? 'text-orange-500 hover:text-orange-700 hover:bg-orange-50'
+                : 'text-green-600 hover:text-green-800 hover:bg-green-50'
+            }`}
+          >
+            {config.isActive ? '⏸ Durdur' : '▶ Aç'}
+          </button>
           <button onClick={() => setEditing(true)}
             className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 hover:bg-blue-50 rounded">Düzenle</button>
           <button onClick={() => setConfirmDelete(true)}
