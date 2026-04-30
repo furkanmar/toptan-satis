@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/product.dart';
 import 'add_to_cart_modal.dart';
@@ -7,13 +6,11 @@ import 'add_to_cart_modal.dart';
 class ProductCard extends StatelessWidget {
   final Product product;
   final String wholesalerId;
-  final WidgetRef ref;
 
   const ProductCard({
     super.key,
     required this.product,
     required this.wholesalerId,
-    required this.ref,
   });
 
   @override
@@ -24,7 +21,7 @@ class ProductCard extends StatelessWidget {
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => showAddToCartModal(context, ref, product, wholesalerId),
+        onTap: () => showAddToCartModal(context, product, wholesalerId),
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Row(
@@ -98,7 +95,7 @@ class ProductCard extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.add_shopping_cart),
                 onPressed: () =>
-                    showAddToCartModal(context, ref, product, wholesalerId),
+                    showAddToCartModal(context, product, wholesalerId),
                 tooltip: 'Sepete ekle',
               ),
             ],
@@ -111,7 +108,7 @@ class ProductCard extends StatelessWidget {
   Widget _placeholder(ColorScheme cs) => Container(
         width: 70,
         height: 70,
-        color: cs.surfaceVariant,
+        color: cs.surfaceContainerHighest,
         child: Icon(Icons.image_not_supported_outlined,
             color: cs.onSurfaceVariant),
       );

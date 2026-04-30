@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -183,7 +184,6 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                     itemBuilder: (_, i) => ProductCard(
                       product: products[i],
                       wholesalerId: widget.wholesalerId,
-                      ref: ref,
                     ),
                   ),
                 );
@@ -193,15 +193,17 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
         ],
       ),
 
-      // Barkod FAB
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.goNamed(
-          'barcode',
-          pathParameters: {'wholesalerId': widget.wholesalerId},
-        ),
-        tooltip: 'Barkod Tara',
-        child: const Icon(Icons.qr_code_scanner),
-      ),
+      // Barkod FAB — web'de mobile_scanner desteklenmiyor
+      floatingActionButton: kIsWeb
+          ? null
+          : FloatingActionButton(
+              onPressed: () => context.goNamed(
+                'barcode',
+                pathParameters: {'wholesalerId': widget.wholesalerId},
+              ),
+              tooltip: 'Barkod Tara',
+              child: const Icon(Icons.qr_code_scanner),
+            ),
     );
   }
 }

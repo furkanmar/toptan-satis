@@ -77,7 +77,7 @@ class _OrderTile extends StatelessWidget {
                         horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color:
-                          Color(order.status.statusColor).withOpacity(0.15),
+                          Color(order.status.statusColor).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                           color: Color(order.status.statusColor), width: 1),

@@ -169,6 +169,9 @@ app.UseMiddleware<ExceptionMiddleware>();
 app.UseSwagger();
 app.UseSwaggerUI();
 
+// UseRouting, UseCors'tan önce gelmeli — aksi hâlde preflight OPTIONS CORS
+// header'sız dönebilir (Microsoft CORS dokümantasyonu gereği)
+app.UseRouting();
 app.UseCors("AllowFrontend");
 app.UseStaticFiles(); // serves wwwroot/uploads
 app.UseAuthentication();

@@ -82,7 +82,7 @@ class Order {
         updatedAt: json['updatedAt'] != null
             ? DateTime.parse(json['updatedAt'] as String)
             : null,
-        items: (json['items'] as List<dynamic>)
+        items: ((json['items'] as List<dynamic>?) ?? [])
             .map((e) => OrderItem.fromJson(e as Map<String, dynamic>))
             .toList(),
       );

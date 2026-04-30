@@ -260,7 +260,7 @@ class _StatementTab extends ConsumerWidget {
                   return Card(
                     margin: const EdgeInsets.only(bottom: 6),
                     color: isOverdue
-                        ? cs.errorContainer.withOpacity(0.3)
+                        ? cs.errorContainer.withValues(alpha: 0.3)
                         : null,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(

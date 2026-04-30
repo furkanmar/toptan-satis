@@ -6,7 +6,6 @@ import '../models/product.dart';
 
 void showAddToCartModal(
   BuildContext context,
-  WidgetRef ref,
   Product product,
   String wholesalerId,
 ) {
@@ -19,27 +18,24 @@ void showAddToCartModal(
     builder: (_) => _AddToCartSheet(
       product: product,
       wholesalerId: wholesalerId,
-      ref: ref,
     ),
   );
 }
 
-class _AddToCartSheet extends StatefulWidget {
+class _AddToCartSheet extends ConsumerStatefulWidget {
   final Product product;
   final String wholesalerId;
-  final WidgetRef ref;
 
   const _AddToCartSheet({
     required this.product,
     required this.wholesalerId,
-    required this.ref,
   });
 
   @override
-  State<_AddToCartSheet> createState() => _AddToCartSheetState();
+  ConsumerState<_AddToCartSheet> createState() => _AddToCartSheetState();
 }
 
-class _AddToCartSheetState extends State<_AddToCartSheet> {
+class _AddToCartSheetState extends ConsumerState<_AddToCartSheet> {
   late ProductUnitConfig _selectedConfig;
   int _quantity = 1;
 
@@ -163,7 +159,7 @@ class _AddToCartSheetState extends State<_AddToCartSheet> {
 
           FilledButton.icon(
             onPressed: () {
-              widget.ref.read(cartProvider(widget.wholesalerId).notifier).add(
+              ref.read(cartProvider(widget.wholesalerId).notifier).add(
                     product: product,
                     unitConfig: _selectedConfig,
                     quantity: _quantity,

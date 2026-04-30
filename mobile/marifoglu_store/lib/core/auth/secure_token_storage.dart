@@ -3,6 +3,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class SecureTokenStorage {
   static const _storage = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    // Web: localStorage kullanır (test için yeterli, production'da dikkat)
+    webOptions: WebOptions(dbName: 'marifoglu_store', publicKey: 'marifoglu'),
   );
 
   static const _keyToken = 'auth_token';

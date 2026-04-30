@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -69,6 +68,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       await dio.post(
         ApiEndpoints.orders,
         data: {
+          'wholesalerId': widget.wholesalerId,
           'note': _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
           'items': cart.items
               .map((item) => {
@@ -159,7 +159,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     padding: const EdgeInsets.all(12),
                     itemCount: cart.items.length,
                     itemBuilder: (_, i) =>
-                        _CartItemTile(item: cart.items[i], ref: ref, wholesalerId: widget.wholesalerId),
+                        _CartItemTile(item: cart.items[i], wholesalerId: widget.wholesalerId),
                   ),
                 ),
 
@@ -181,7 +181,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: cs.surfaceVariant,
+                    color: cs.surfaceContainerHighest,
                     borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(16)),
                   ),
@@ -226,19 +226,17 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   }
 }
 
-class _CartItemTile extends StatelessWidget {
+class _CartItemTile extends ConsumerWidget {
   final CartItem item;
-  final WidgetRef ref;
   final String wholesalerId;
 
   const _CartItemTile({
     required this.item,
-    required this.ref,
     required this.wholesalerId,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
 
     return Card(
@@ -259,14 +257,14 @@ class _CartItemTile extends StatelessWidget {
                       errorBuilder: (_, __, ___) => Container(
                         width: 56,
                         height: 56,
-                        color: cs.surfaceVariant,
+                        color: cs.surfaceContainerHighest,
                         child: const Icon(Icons.image_not_supported_outlined),
                       ),
                     )
                   : Container(
                       width: 56,
                       height: 56,
-                      color: cs.surfaceVariant,
+                      color: cs.surfaceContainerHighest,
                       child: const Icon(Icons.inventory_2_outlined),
                     ),
             ),

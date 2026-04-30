@@ -42,22 +42,33 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
 
     await _controller.stop();
 
-    // Client-side arama
+    // Ürünler cache'te yoksa yüklenene kadar bekle
     final productsAsync = ref.read(productsProvider(widget.wholesalerId));
-    final products = productsAsync.valueOrNull ?? [];
+    final List<Product> products;
+    if (productsAsync.isLoading) {
+      // Provider henüz yükleniyor — kısa süre bekle
+      await Future.delayed(const Duration(milliseconds: 500));
+      final retried = ref.read(productsProvider(widget.wholesalerId));
+      products = retried.valueOrNull ?? [];
+    } else {
+      products = productsAsync.valueOrNull ?? [];
+    }
+
     final found = findByBarcode(products, raw);
 
     if (!mounted) return;
 
     if (found != null) {
-      showAddToCartModal(context, ref, found, widget.wholesalerId);
+      showAddToCartModal(context, found, widget.wholesalerId);
       setState(() {
         _isProcessing = false;
         _statusMessage = null;
       });
     } else {
       setState(() {
-        _statusMessage = 'Ürün bulunamadı: $raw';
+        _statusMessage = products.isEmpty
+            ? 'Ürün listesi yüklenemedi — lütfen önce ürün ekranını açın'
+            : 'Ürün bulunamadı: $raw';
         _isProcessing = false;
       });
       await Future.delayed(const Duration(seconds: 2));
@@ -71,6 +82,8 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // Products'ı arka planda watch et — cache'te yoksa otomatik fetch başlar
+    ref.watch(productsProvider(widget.wholesalerId));
 
     return Scaffold(
       appBar: AppBar(

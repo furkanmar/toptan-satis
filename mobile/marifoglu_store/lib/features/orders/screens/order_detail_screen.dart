@@ -1,6 +1,10 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/api/api_endpoints.dart';
@@ -9,14 +13,10 @@ import '../../auth/providers/auth_provider.dart';
 import '../models/order.dart';
 import '../providers/order_provider.dart';
 
+// ignore_for_file: use_build_context_synchronously
+
 final _dateFmt = DateFormat('dd.MM.yyyy HH:mm', 'tr_TR');
 final _shortFmt = DateFormat('dd.MM.yyyy', 'tr_TR');
-
-// ignore_for_file: use_build_context_synchronously
-const _baseUrl = String.fromEnvironment(
-  'BASE_URL',
-  defaultValue: 'http://10.0.2.2:5000',
-);
 
 class OrderDetailScreen extends ConsumerWidget {
   final String orderId;
@@ -82,7 +82,7 @@ class OrderDetailScreen extends ConsumerWidget {
                           horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: Color(order.status.statusColor)
-                            .withOpacity(0.15),
+                            .withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                             color: Color(order.status.statusColor)),
@@ -151,21 +151,10 @@ class OrderDetailScreen extends ConsumerWidget {
                 ),
               ),
 
-              // İrsaliye PDF (varsa Delivered durumunda göster)
+              // İrsaliye PDF (Shipped veya Delivered durumunda göster)
               if (order.status == 'Delivered' || order.status == 'Shipped') ...[
                 const SizedBox(height: 12),
-                FilledButton.tonalIcon(
-                  onPressed: () async {
-                    final url = Uri.parse(
-                        '$_baseUrl/api${ApiEndpoints.deliveryNotePdf(order.id)}');
-                    if (await canLaunchUrl(url)) {
-                      await launchUrl(url,
-                          mode: LaunchMode.externalApplication);
-                    }
-                  },
-                  icon: const Icon(Icons.picture_as_pdf),
-                  label: const Text('İrsaliye PDF İndir'),
-                ),
+                _PdfDownloadButton(orderId: order.id),
               ],
 
               const SizedBox(height: 24),
@@ -173,6 +162,68 @@ class OrderDetailScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// PDF'i Dio üzerinden (token ile) indirir → geçici dosyaya yazar → açar.
+class _PdfDownloadButton extends ConsumerStatefulWidget {
+  final String orderId;
+
+  const _PdfDownloadButton({required this.orderId});
+
+  @override
+  ConsumerState<_PdfDownloadButton> createState() => _PdfDownloadButtonState();
+}
+
+class _PdfDownloadButtonState extends ConsumerState<_PdfDownloadButton> {
+  bool _loading = false;
+
+  Future<void> _download() async {
+    setState(() => _loading = true);
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get<List<int>>(
+        ApiEndpoints.deliveryNotePdf(widget.orderId),
+        options: Options(responseType: ResponseType.bytes),
+      );
+
+      final tmpDir = await getTemporaryDirectory();
+      final file = File('${tmpDir.path}/irsaliye_${widget.orderId}.pdf');
+      await file.writeAsBytes(response.data!);
+
+      final uri = Uri.file(file.path);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('PDF açılamadı — PDF görüntüleyici bulunamadı')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('PDF indirilemedi: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.tonalIcon(
+      onPressed: _loading ? null : _download,
+      icon: _loading
+          ? const SizedBox(
+              width: 18, height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.picture_as_pdf),
+      label: Text(_loading ? 'İndiriliyor...' : 'İrsaliye PDF İndir'),
     );
   }
 }
