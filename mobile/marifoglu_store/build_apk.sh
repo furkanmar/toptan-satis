@@ -15,7 +15,7 @@ sed -i "s/^version: .*/version: $NEW_VERSION/" $VERSION_FILE
 # Production APK build
 echo "🔨 APK build başlıyor..."
 flutter build apk --release \
-  --dart-define=BASE_URL=https://api.marifoglu.trade
+  --dart-define=BASE_URL=https://wholesale.marifoglu.trade
 
 APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
 OUTPUT="build/marifoglu-store-v${BASE}-${NEW_BUILD}.apk"

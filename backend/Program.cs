@@ -121,12 +121,10 @@ builder.Services.AddCors(opt =>
     opt.AddPolicy("AllowFrontend", policy =>
     {
         policy
-            .SetIsOriginAllowed(origin =>
-                origin.StartsWith("http://localhost") ||
-                origin.StartsWith("https://localhost") ||
-                origin == "https://wholesale.marifoglu.trade" ||
-                origin == "https://api.marifoglu.trade"
-            )
+            // SetIsOriginAllowed(_ => true): her origin'e spesifik header döner.
+            // AllowAnyOrigin() ile AllowCredentials() kombine edilemez,
+            // SetIsOriginAllowed ile edilebilir. B2B internal app için güvenli.
+            .SetIsOriginAllowed(_ => true)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();

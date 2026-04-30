@@ -3,11 +3,11 @@ import 'interceptors/auth_interceptor.dart';
 import 'interceptors/error_interceptor.dart';
 import 'interceptors/idempotency_interceptor.dart';
 
-/// Prod build: --dart-define=BASE_URL=https://api.marifoglu.trade
-/// Local emulator override: --dart-define=BASE_URL=http://10.0.2.2:5000
+/// API nginx proxy üzerinden gidiyor: wholesale.marifoglu.trade/api/...
+/// Emulator için: --dart-define=BASE_URL=http://10.0.2.2:5001
 const _baseUrl = String.fromEnvironment(
   'BASE_URL',
-  defaultValue: 'https://api.marifoglu.trade',
+  defaultValue: 'https://wholesale.marifoglu.trade',
 );
 
 class DioClient {
