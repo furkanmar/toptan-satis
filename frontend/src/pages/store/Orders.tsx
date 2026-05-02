@@ -19,6 +19,7 @@ const NAV = (wholesalerId: string) => [
   { to: `/store/${wholesalerId}`, label: 'Ürünler' },
   { to: `/store/${wholesalerId}/orders`, label: 'Siparişlerim' },
   { to: `/store/${wholesalerId}/credit`, label: 'Veresiye' },
+  { to: `/store/${wholesalerId}/cart`, label: 'Sepetim' },
   { to: '/store', label: '← Toptancı Seç' }
 ]
 

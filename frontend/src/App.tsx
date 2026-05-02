@@ -5,6 +5,7 @@ import LoginPage from './pages/Login'
 // Store sayfaları
 import SelectWholesaler from './pages/store/SelectWholesaler'
 import StoreHome from './pages/store/Home'
+import StoreCart from './pages/store/Cart'
 import StoreOrders from './pages/store/Orders'
 import StoreCredit from './pages/store/Credit'
 
@@ -51,6 +52,7 @@ export default function App() {
         {/* Mağaza */}
         <Route path="/store" element={<RequireAuth roles={['Store']}><SelectWholesaler /></RequireAuth>} />
         <Route path="/store/:wholesalerId" element={<RequireAuth roles={['Store']}><StoreHome /></RequireAuth>} />
+        <Route path="/store/:wholesalerId/cart" element={<RequireAuth roles={['Store']}><StoreCart /></RequireAuth>} />
         <Route path="/store/:wholesalerId/orders" element={<RequireAuth roles={['Store']}><StoreOrders /></RequireAuth>} />
         <Route path="/store/:wholesalerId/credit" element={<RequireAuth roles={['Store']}><StoreCredit /></RequireAuth>} />
 

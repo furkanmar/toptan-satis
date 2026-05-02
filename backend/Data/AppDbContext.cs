@@ -45,6 +45,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         // Product
         mb.Entity<Product>().Property(p => p.Price).HasPrecision(18, 2);
+        mb.Entity<Product>().Property(p => p.MaxOrderAmount).HasPrecision(18, 2);
 
         // Optimistic concurrency — PostgreSQL xmin system column (kolon oluşturmaz).
         // UseXminAsConcurrencyToken() extension'ının yaptığı şey tam olarak budur.

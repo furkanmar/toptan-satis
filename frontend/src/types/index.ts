@@ -39,6 +39,7 @@ export interface Product {
   minOrderQty: number
   stock: number
   minimumStockLevel?: number | null
+  maxOrderAmount?: number | null
   isActive: boolean
   createdAt: string
   images: ProductImage[]

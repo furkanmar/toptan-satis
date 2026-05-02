@@ -16,6 +16,7 @@ public class Product
     public bool IsActive { get; set; } = true;
     public int VatRate { get; set; } = 18;          // KDV oranı: 0, 1, 10, 18, 20
     public int? MinimumStockLevel { get; set; }     // null = alarm yok
+    public decimal? MaxOrderAmount { get; set; }    // null = sınır yok; mağaza siparişi bu tutarı geçemez
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation

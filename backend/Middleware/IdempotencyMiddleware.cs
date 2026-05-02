@@ -27,7 +27,9 @@ public class IdempotencyMiddleware(RequestDelegate next, ILogger<IdempotencyMidd
         }
 
         // Header yoksa geç
-        if (!ctx.Request.Headers.TryGetValue("Idempotency-Key", out var keyValues))
+        // Hem Idempotency-Key hem X-Idempotency-Key kabul edilir
+        if (!ctx.Request.Headers.TryGetValue("X-Idempotency-Key", out var keyValues) &&
+            !ctx.Request.Headers.TryGetValue("Idempotency-Key", out keyValues))
         {
             await next(ctx);
             return;

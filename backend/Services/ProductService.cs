@@ -103,6 +103,8 @@ public class ProductService(
         if (dto.CategoryId.HasValue) product.CategoryId = dto.CategoryId.Value;
         if (dto.MinimumStockLevel.HasValue)
             product.MinimumStockLevel = dto.MinimumStockLevel.Value < 0 ? null : dto.MinimumStockLevel.Value;
+        if (dto.MaxOrderAmount.HasValue)
+            product.MaxOrderAmount = dto.MaxOrderAmount.Value <= 0 ? null : dto.MaxOrderAmount.Value;
 
         if (dto.Price.HasValue && dto.Price.Value != oldPrice)
         {
@@ -335,6 +337,7 @@ public class ProductService(
             Stock = p.Stock,
             IsActive = p.IsActive,
             MinimumStockLevel = p.MinimumStockLevel,
+            MaxOrderAmount = p.MaxOrderAmount,
             CreatedAt = p.CreatedAt,
             Images = images,
             UnitConfigs = p.UnitConfigs

@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import Layout from '../../components/Layout'
-import { productsApi, categoriesApi, ordersApi, creditApi } from '../../api/client'
+import { productsApi, categoriesApi, creditApi } from '../../api/client'
 import { useCartStore } from '../../store/cartStore'
 import type { Product, Category, CreditSummary, ProductUnitConfig } from '../../types'
 
@@ -10,6 +10,7 @@ const NAV = (wholesalerId: string) => [
   { to: `/store/${wholesalerId}`, label: 'Ürünler' },
   { to: `/store/${wholesalerId}/orders`, label: 'Siparişlerim' },
   { to: `/store/${wholesalerId}/credit`, label: 'Veresiye' },
+  { to: `/store/${wholesalerId}/cart`, label: 'Sepetim' },
   { to: '/store', label: '← Toptancı Seç' },
 ]
 
@@ -83,9 +84,9 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product,
                 className="w-7 h-7 bg-gray-50 hover:bg-gray-100 text-gray-600 text-sm flex items-center justify-center transition-colors">+</button>
             </div>
             <button onClick={handleAdd}
-              disabled={product.stock === 0 || !selected}
+              disabled={!selected}
               className="flex-1 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-40 transition-colors">
-              {product.stock === 0 ? 'Stok Yok' : '+ Ekle'}
+              + Ekle
             </button>
           </div>
         </div>
@@ -153,7 +154,7 @@ function ProductRow({ product, onAdd }: { product: Product; onAdd: (p: Product, 
             className="w-6 h-7 bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs flex items-center justify-center transition-colors">+</button>
         </div>
         <button onClick={handleAdd}
-          disabled={product.stock === 0 || !selected}
+          disabled={!selected}
           className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-40 transition-colors">
           + Ekle
         </button>
@@ -167,7 +168,7 @@ export default function StoreHome() {
   const { wholesalerId } = useParams<{ wholesalerId: string }>()
   const navigate = useNavigate()
 
-  const { items, ensureWholesaler, addItem, removeItem, updateQty, clearCart } = useCartStore()
+  const { items, ensureWholesaler, addItem, clearCart } = useCartStore()
 
   useEffect(() => { if (wholesalerId) ensureWholesaler(wholesalerId) }, [wholesalerId, ensureWholesaler])
 
@@ -175,8 +176,9 @@ export default function StoreHome() {
   const [sortKey, setSortKey] = useState<SortKey>(() => (sessionStorage.getItem('storeSortKey') as SortKey) ?? 'name_asc')
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>()
-  const [orderNote, setOrderNote] = useState('')
-  const [orderSuccess, setOrderSuccess] = useState(false)
+
+  // maxOrderAmount uyarısı
+  const [maxWarning, setMaxWarning] = useState<{ productName: string; maxAmount: number; currentTotal: number } | null>(null)
 
   const setView = (v: ViewMode) => { setViewMode(v); sessionStorage.setItem('storeViewMode', v) }
   const setSort = (s: SortKey) => { setSortKey(s); sessionStorage.setItem('storeSortKey', s) }
@@ -221,22 +223,65 @@ export default function StoreHome() {
     return list
   }, [allProducts, selectedCategory, search, sortKey])
 
+  // maxOrderAmount kontrolü ile sepete ekle
+  const handleAdd = (product: Product, uc: ProductUnitConfig, qty: number) => {
+    if (product.maxOrderAmount) {
+      const existingTotal = Object.values(items)
+        .filter(it => it.product.id === product.id)
+        .reduce((s, it) => s + it.unitPrice * it.qty, 0)
+      const addedTotal = uc.price * qty
+      if (existingTotal + addedTotal > product.maxOrderAmount) {
+        setMaxWarning({
+          productName: product.name,
+          maxAmount: product.maxOrderAmount,
+          currentTotal: existingTotal + addedTotal,
+        })
+        return
+      }
+    }
+    addItem(product, uc, qty)
+  }
+
   const cartEntries = Object.entries(items)
   const cartTotal   = cartEntries.reduce((s, [, it]) => s + it.unitPrice * it.qty, 0)
-
-  const placeOrder = useMutation({
-    mutationFn: () => ordersApi.create({
-      note: orderNote,
-      items: cartEntries.map(([, it]) => ({ productId: it.product.id, unitConfigId: it.unitConfigId, quantity: it.qty })),
-    }),
-    onSuccess: () => { clearCart(); setOrderNote(''); setOrderSuccess(true); setTimeout(() => setOrderSuccess(false), 3000) },
-    onError: (err: unknown) => {
-      alert((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Sipariş gönderilemedi')
-    },
-  })
+  const cartCount   = cartEntries.length
 
   return (
     <Layout navLinks={NAV(wholesalerId ?? '')}>
+      {/* maxOrderAmount uyarı popup */}
+      {maxWarning && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl">⚠️</span>
+              <h2 className="font-bold text-gray-900">Sipariş Limiti Aşıldı</h2>
+            </div>
+            <p className="text-sm text-gray-700 mb-2">
+              <span className="font-semibold">{maxWarning.productName}</span> için toptancı maksimum sipariş tutarı belirlemiş.
+            </p>
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Maksimum tutar</span>
+                <span className="font-semibold text-orange-700">₺{maxWarning.maxAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Sepetinizdeki tutar</span>
+                <span className="font-semibold text-red-600">₺{maxWarning.currentTotal.toFixed(2)}</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Ürünü yine de sipariş vermek isterseniz toptancıyla iletişime geçin.
+            </p>
+            <button
+              onClick={() => setMaxWarning(null)}
+              className="w-full py-2 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-700 transition-colors"
+            >
+              Tamam
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Veresiye şeridi */}
       {credit && credit.balance > 0 && (
         <div
@@ -308,80 +353,56 @@ export default function StoreHome() {
           ) : viewMode === 'card' ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {products.map(p => (
-                <ProductCard key={p.id} product={p}
-                  onAdd={(prod, uc, qty) => addItem(prod, uc, qty)} />
+                <ProductCard key={p.id} product={p} onAdd={handleAdd} />
               ))}
             </div>
           ) : (
             <div className="flex flex-col gap-2">
               {products.map(p => (
-                <ProductRow key={p.id} product={p}
-                  onAdd={(prod, uc, qty) => addItem(prod, uc, qty)} />
+                <ProductRow key={p.id} product={p} onAdd={handleAdd} />
               ))}
             </div>
           )}
         </div>
 
-        {/* Sepet */}
-        <div className="w-72 shrink-0">
-          <div className="bg-white rounded-xl border border-gray-200 p-4 sticky top-20">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold text-gray-900">
-                Sepet {cartEntries.length > 0 && <span className="text-blue-600">({cartEntries.length})</span>}
-              </h2>
-              {cartEntries.length > 0 && (
-                <button onClick={clearCart} className="text-xs text-gray-400 hover:text-red-500">Temizle</button>
+        {/* Sepet özeti */}
+        <div className="w-64 shrink-0">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 sticky top-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-900">Sepet</h2>
+              {cartCount > 0 && (
+                <button onClick={clearCart} className="text-xs text-gray-400 hover:text-red-500 transition-colors">Temizle</button>
               )}
             </div>
 
-            {orderSuccess && (
-              <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700">✓ Sipariş gönderildi!</div>
-            )}
-
-            {cartEntries.length === 0 ? (
-              <p className="text-sm text-gray-400">Sepet boş</p>
+            {cartCount === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">Sepet boş</p>
             ) : (
               <>
-                <div className="space-y-2 mb-3 max-h-72 overflow-y-auto pr-1">
-                  {cartEntries.map(([key, it]) => (
-                    <div key={key} className="text-sm border border-gray-100 rounded-lg p-2">
-                      <div className="flex justify-between items-start gap-1 mb-1.5">
-                        <div className="min-w-0">
-                          <p className="text-gray-800 text-xs font-medium truncate">{it.product.name}</p>
-                          <p className="text-xs text-gray-400">
-                            {it.unitType}{it.contentQty > 1 ? ` ×${it.contentQty}` : ''} · ₺{it.unitPrice.toFixed(2)}
-                          </p>
-                        </div>
-                        <button onClick={() => removeItem(key)} className="text-gray-300 hover:text-red-400 text-xs shrink-0">✕</button>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <button onClick={() => updateQty(key, it.qty - 1)}
-                          className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs flex items-center justify-center">−</button>
-                        <input type="number" min={1} value={it.qty}
-                          onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v) && v > 0) updateQty(key, v) }}
-                          className="w-12 text-center text-sm border border-gray-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400" />
-                        <button onClick={() => updateQty(key, it.qty + 1)}
-                          className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs flex items-center justify-center">+</button>
-                        <span className="ml-auto text-xs font-semibold text-gray-700">₺{(it.unitPrice * it.qty).toFixed(2)}</span>
-                      </div>
+                <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+                  {cartEntries.slice(0, 5).map(([, it]) => (
+                    <div key={it.product.id + it.unitConfigId} className="flex justify-between items-center text-xs">
+                      <span className="text-gray-700 truncate flex-1 mr-2">{it.product.name}</span>
+                      <span className="text-gray-500 shrink-0">{it.qty} × ₺{it.unitPrice.toFixed(2)}</span>
                     </div>
                   ))}
+                  {cartEntries.length > 5 && (
+                    <p className="text-xs text-gray-400 text-center">+{cartEntries.length - 5} ürün daha…</p>
+                  )}
                 </div>
 
-                <div className="border-t border-gray-100 pt-3 mb-3">
-                  <div className="flex justify-between text-sm font-semibold">
-                    <span>Toplam</span>
-                    <span className="text-blue-600">₺{cartTotal.toFixed(2)}</span>
+                <div className="border-t border-gray-100 pt-3 mb-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">{cartCount} kalem</span>
+                    <span className="text-base font-bold text-blue-600">₺{cartTotal.toFixed(2)}</span>
                   </div>
                 </div>
 
-                <textarea value={orderNote} onChange={e => setOrderNote(e.target.value)}
-                  placeholder="Sipariş notu…" rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-
-                <button onClick={() => placeOrder.mutate()} disabled={placeOrder.isPending}
-                  className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
-                  {placeOrder.isPending ? 'Gönderiliyor…' : 'Sipariş Ver'}
+                <button
+                  onClick={() => navigate(`/store/${wholesalerId}/cart`)}
+                  className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  Sepete Git →
                 </button>
               </>
             )}

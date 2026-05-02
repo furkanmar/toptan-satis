@@ -24,11 +24,13 @@ interface ProductForm {
   brand: string
   manufacturer: string
   minimumStockLevel: string  // '' = alarm yok
+  maxOrderAmount: string     // '' = sınır yok
 }
 
 const emptyForm = (): ProductForm => ({
   name: '', description: '', price: '', vatRate: '18', minOrderQty: '1',
   stock: '0', categoryId: '', brand: '', manufacturer: '', minimumStockLevel: '',
+  maxOrderAmount: '',
 })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -302,6 +304,9 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
         minimumStockLevel: localProduct.minimumStockLevel != null
           ? localProduct.minimumStockLevel.toString()
           : '',
+        maxOrderAmount: localProduct.maxOrderAmount != null
+          ? localProduct.maxOrderAmount.toString()
+          : '',
       }
     : emptyForm()
   )
@@ -350,6 +355,8 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
         manufacturer: f.manufacturer || undefined,
         // -1 = sentinel: backend'de null'a çevirir (alarmı kaldırır)
         minimumStockLevel: f.minimumStockLevel !== '' ? parseInt(f.minimumStockLevel) : -1,
+        // 0 = sentinel: backend'de null'a çevirir (limiti kaldırır)
+        maxOrderAmount: f.maxOrderAmount !== '' ? parseFloat(f.maxOrderAmount) : 0,
         isActive,
       }
       if (isEdit) return productsApi.update(localProduct!.id, payload)
@@ -515,6 +522,24 @@ function ProductModal({ product, categories, profileId, onClose }: ProductModalP
                   />
                   <p className="text-xs text-gray-400 mt-1">
                     Stok bu seviyenin altına düşünce Telegram'a alarm gönderilir.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Maks. Sipariş Tutarı (₺)
+                    <span className="ml-1 text-gray-400 font-normal">(boş = sınır yok)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.maxOrderAmount}
+                    onChange={set('maxOrderAmount')}
+                    placeholder="Örn: 5000"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Mağaza sepetinde bu ürünün toplam tutarı bu sınırı geçince uyarı gösterilir.
                   </p>
                 </div>
               </section>

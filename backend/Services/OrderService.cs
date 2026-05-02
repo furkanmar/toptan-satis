@@ -194,6 +194,29 @@ public class OrderService(
 
     public async Task<OrderDto> UpdateItemsAsync(Guid orderId, Guid wholesalerId, UpdateOrderItemsDto dto)
     {
+        DbUpdateConcurrencyException? lastConcurrencyEx = null;
+
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                return await ExecuteUpdateItemsAsync(orderId, wholesalerId, dto);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                lastConcurrencyEx = ex;
+                db.ChangeTracker.Clear();
+                logger.LogWarning(
+                    "UpdateItems concurrency çakışması (deneme {Attempt}/3): Order={OrderId}",
+                    attempt + 1, orderId);
+            }
+        }
+
+        throw lastConcurrencyEx!;
+    }
+
+    private async Task<OrderDto> ExecuteUpdateItemsAsync(Guid orderId, Guid wholesalerId, UpdateOrderItemsDto dto)
+    {
         var order = await db.Orders
             .Include(o => o.Items)
             .FirstOrDefaultAsync(o => o.Id == orderId && o.WholesalerId == wholesalerId)
@@ -203,8 +226,11 @@ public class OrderService(
             throw new InvalidOperationException("Sadece bekleyen siparişlerin içeriği değiştirilebilir");
 
         var productIds = dto.Items.Select(i => i.ProductId).ToList();
+
+        // AsNoTracking — sadece okuma amaçlı; xmin concurrency token gereksiz yere izlenmesin
         var products = await db.Products
             .Include(p => p.UnitConfigs)
+            .AsNoTracking()
             .Where(p => productIds.Contains(p.Id) && p.IsActive)
             .ToListAsync();
 

@@ -17,6 +17,7 @@ public class ProductDto
     public bool IsActive { get; set; }
     public int VatRate { get; set; }
     public int? MinimumStockLevel { get; set; }
+    public decimal? MaxOrderAmount { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<ProductImageDto> Images { get; set; } = [];
     public List<ProductUnitConfigDto> UnitConfigs { get; set; } = [];
@@ -77,6 +78,8 @@ public class UpdateProductDto
     public Guid? CategoryId { get; set; }
     /// <summary>-1 = alarmı kapat (null yap), >= 0 = seviyeyi ayarla</summary>
     public int? MinimumStockLevel { get; set; }
+    /// <summary>null = sınır kaldır, > 0 = sipariş üst limiti</summary>
+    public decimal? MaxOrderAmount { get; set; }
 }
 
 // ─── Unit Config yönetimi ─────────────────────────────────────────────────────
