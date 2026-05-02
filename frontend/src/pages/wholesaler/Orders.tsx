@@ -5,14 +5,6 @@ import Layout from '../../components/Layout'
 import { ordersApi, deliveryNotesApi } from '../../api/client'
 import type { Order, OrderItem } from '../../types'
 
-const NAV = [
-  { to: '/wholesaler', label: 'Ana Sayfa' },
-  { to: '/wholesaler/products', label: 'Ürünler' },
-  { to: '/wholesaler/orders', label: 'Siparişler' },
-  { to: '/wholesaler/delivery-notes', label: 'İrsaliyeler' },
-  { to: '/wholesaler/credit', label: 'Veresiye' },
-  { to: '/wholesaler/settings', label: 'Ayarlar' }
-]
 
 type Tab = 'pending' | 'confirmed' | 'history'
 
@@ -162,7 +154,7 @@ export default function WholesalerOrders() {
   ]
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout>
       <h1 className="text-xl font-bold text-gray-900 mb-4">Siparişler</h1>
 
       <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg w-fit">

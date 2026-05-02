@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/shimmer_loading.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../cart/providers/cart_provider.dart';
 import '../providers/product_provider.dart';
 import '../widgets/product_card.dart';
@@ -36,6 +37,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
     final params = (
       wholesalerId: widget.wholesalerId,
       query: _query,
@@ -86,7 +88,13 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               ),
               PopupMenuItem(
                 child: const Text('Cari Hesap'),
-                onTap: () => context.pushNamed('credit'),
+                onTap: () => context.pushNamed(
+                  'credit',
+                  queryParameters: {
+                    'wholesalerId': widget.wholesalerId,
+                    'storeId': authState.profileId ?? '',
+                  },
+                ),
               ),
               PopupMenuItem(
                 child: const Text('Profil'),

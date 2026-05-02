@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import LoadingSkeleton from '../components/ui/LoadingSkeleton'
 import EmptyState from '../components/ui/EmptyState'
@@ -8,7 +7,6 @@ import ErrorState from '../components/ui/ErrorState'
 import { NotificationStatusBadge } from '../components/ui/StatusBadge'
 import { usersApi } from '../api/client'
 import { formatDate } from '../lib/utils'
-import { useAuthStore } from '../store/authStore'
 import type { NotificationLogPage } from '../types'
 
 const NOTIF_TYPE_LABELS: Record<string, string> = {
@@ -20,24 +18,7 @@ const NOTIF_TYPE_LABELS: Record<string, string> = {
 }
 
 export default function Notifications() {
-  const navigate = useNavigate()
-  const role = useAuthStore(s => s.role)
   const [page, setPage] = useState(1)
-
-  const navLinks =
-    role === 'Wholesaler'
-      ? [
-          { to: '/wholesaler', label: 'Ana Sayfa' },
-          { to: '/wholesaler/products', label: 'Ürünler' },
-          { to: '/wholesaler/orders', label: 'Siparişler' },
-          { to: '/wholesaler/credit', label: 'Veresiye' },
-          { to: '/wholesaler/settings', label: 'Ayarlar' },
-          { to: '/notifications', label: 'Bildirimler' },
-        ]
-      : [
-          { to: '/store', label: 'Ana Sayfa' },
-          { to: '/notifications', label: 'Bildirimler' },
-        ]
 
   const { data, isLoading, isError, refetch } = useQuery<NotificationLogPage>({
     queryKey: ['my-notifications', page],
@@ -47,7 +28,7 @@ export default function Notifications() {
   const totalPages = data ? Math.ceil(data.total / data.pageSize) : 1
 
   return (
-    <Layout navLinks={navLinks}>
+    <Layout>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-900">Bildirim Geçmişi</h1>
         {data && <span className="text-xs text-gray-500">Toplam {data.total} kayıt</span>}

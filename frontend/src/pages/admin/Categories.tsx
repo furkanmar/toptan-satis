@@ -4,12 +4,6 @@ import Layout from '../../components/Layout'
 import { api } from '../../api/client'
 import type { Category } from '../../types'
 
-const NAV = [
-  { to: '/admin', label: 'Dashboard' },
-  { to: '/admin/users', label: 'Kullanıcılar' },
-  { to: '/admin/store-wholesalers', label: 'Mağaza-Toptancı' },
-  { to: '/admin/categories', label: 'Kategoriler' },
-]
 
 export default function AdminCategories() {
   const qc = useQueryClient()
@@ -40,7 +34,7 @@ export default function AdminCategories() {
   })
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout>
       <h1 className="text-xl font-bold text-gray-900 mb-4">Kategori Yönetimi</h1>
 
       <div className="grid grid-cols-3 gap-6">

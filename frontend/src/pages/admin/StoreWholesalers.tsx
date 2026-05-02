@@ -4,13 +4,6 @@ import Layout from '../../components/Layout'
 import { adminApi, wholesalersApi } from '../../api/client'
 import type { StoreWholesalerRelation, Wholesaler } from '../../types'
 
-const NAV = [
-  { to: '/admin', label: 'Dashboard' },
-  { to: '/admin/users', label: 'Kullanıcılar' },
-  { to: '/admin/store-wholesalers', label: 'Mağaza-Toptancı' },
-  { to: '/admin/categories', label: 'Kategoriler' },
-  { to: '/admin/audit-logs', label: 'Audit Log' },
-]
 
 export default function AdminStoreWholesalers() {
   const qc = useQueryClient()
@@ -66,7 +59,7 @@ export default function AdminStoreWholesalers() {
   }, {})
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Mağaza-Toptancı İlişkileri</h1>

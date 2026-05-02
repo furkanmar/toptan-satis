@@ -10,13 +10,6 @@ import { wholesalersApi } from '../../api/client'
 import { formatDate, qtySign } from '../../lib/utils'
 import type { StockMovementPage } from '../../types'
 
-const NAV = [
-  { to: '/wholesaler', label: 'Ana Sayfa' },
-  { to: '/wholesaler/products', label: 'Ürünler' },
-  { to: '/wholesaler/orders', label: 'Siparişler' },
-  { to: '/wholesaler/credit', label: 'Veresiye' },
-  { to: '/wholesaler/settings', label: 'Ayarlar' },
-]
 
 export default function WholesalerStockMovements() {
   const navigate = useNavigate()
@@ -30,7 +23,7 @@ export default function WholesalerStockMovements() {
   const totalPages = data ? Math.ceil(data.total / data.pageSize) : 1
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-900">Tüm Stok Hareketleri</h1>
         {data && <span className="text-xs text-gray-500">Toplam {data.total} kayıt</span>}

@@ -6,13 +6,6 @@ import { productsApi, categoriesApi } from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 import type { Product, Category, ProductUnitConfig } from '../../types'
 
-const NAV = [
-  { to: '/wholesaler', label: 'Ana Sayfa' },
-  { to: '/wholesaler/products', label: 'Ürünler' },
-  { to: '/wholesaler/orders', label: 'Siparişler' },
-  { to: '/wholesaler/credit', label: 'Veresiye' },
-  { to: '/wholesaler/settings', label: 'Ayarlar' },
-]
 
 const UNIT_TYPES = ['Adet', 'Kg', 'Koli', 'Litre', 'Paket']
 
@@ -733,7 +726,7 @@ export default function WholesalerProducts() {
   })
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-900">Ürünlerim</h1>

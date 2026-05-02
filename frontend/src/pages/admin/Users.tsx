@@ -3,13 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Layout from '../../components/Layout'
 import { api, storeWholesalersApi } from '../../api/client'
 
-const NAV = [
-  { to: '/admin', label: 'Dashboard' },
-  { to: '/admin/users', label: 'Kullanıcılar' },
-  { to: '/admin/store-wholesalers', label: 'Mağaza-Toptancı' },
-  { to: '/admin/categories', label: 'Kategoriler' },
-  { to: '/admin/audit-logs', label: 'Audit Log' },
-]
 
 type UserRole = 'wholesaler' | 'store'
 
@@ -70,7 +63,7 @@ export default function AdminUsers() {
   const stores = users.filter(u => u.role === 'Store')
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout>
       <h1 className="text-xl font-bold text-gray-900 mb-4">Kullanıcı Yönetimi</h1>
 
       <div className="grid grid-cols-3 gap-6">

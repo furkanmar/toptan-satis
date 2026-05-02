@@ -28,12 +28,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     final role = await SecureTokenStorage.getRole();
     final userId = await SecureTokenStorage.getUserId();
+    final profileId = await SecureTokenStorage.getProfileId();
     final displayName = await SecureTokenStorage.getDisplayName();
 
     state = AuthState(
       token: token,
       role: role,
       userId: userId,
+      profileId: profileId,
       displayName: displayName,
     );
   }
@@ -51,12 +53,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await SecureTokenStorage.saveToken(auth.token);
       await SecureTokenStorage.saveRole(auth.role);
       await SecureTokenStorage.saveUserId(auth.userId);
+      if (auth.profileId != null) {
+        await SecureTokenStorage.saveProfileId(auth.profileId!);
+      }
       await SecureTokenStorage.saveDisplayName(auth.displayName);
 
       state = AuthState(
         token: auth.token,
         role: auth.role,
         userId: auth.userId,
+        profileId: auth.profileId,
         displayName: auth.displayName,
       );
     } catch (_) {

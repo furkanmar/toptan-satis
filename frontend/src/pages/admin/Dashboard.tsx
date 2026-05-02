@@ -3,13 +3,6 @@ import Layout from '../../components/Layout'
 import { ordersApi, wholesalersApi } from '../../api/client'
 import type { Order, Wholesaler } from '../../types'
 
-const NAV = [
-  { to: '/admin', label: 'Dashboard' },
-  { to: '/admin/users', label: 'Kullanıcılar' },
-  { to: '/admin/store-wholesalers', label: 'Mağaza-Toptancı' },
-  { to: '/admin/categories', label: 'Kategoriler' },
-  { to: '/admin/audit-logs', label: 'Audit Log' },
-]
 
 export default function AdminDashboard() {
   const { data: orders = [] } = useQuery<Order[]>({
@@ -28,7 +21,7 @@ export default function AdminDashboard() {
   const delivered = orders.filter(o => o.status === 'Delivered').length
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout>
       <h1 className="text-xl font-bold text-gray-900 mb-4">Admin Paneli</h1>
 
       {/* Stats */}

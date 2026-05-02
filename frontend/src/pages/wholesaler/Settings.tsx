@@ -5,13 +5,6 @@ import { api, categoriesApi, usersApi } from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 import type { Category } from '../../types'
 
-const NAV = [
-  { to: '/wholesaler', label: 'Ana Sayfa' },
-  { to: '/wholesaler/products', label: 'Ürünler' },
-  { to: '/wholesaler/orders', label: 'Siparişler' },
-  { to: '/wholesaler/credit', label: 'Veresiye' },
-  { to: '/wholesaler/settings', label: 'Ayarlar' }
-]
 
 export default function WholesalerSettings() {
   const qc = useQueryClient()
@@ -71,7 +64,7 @@ export default function WholesalerSettings() {
   })
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout>
       <h1 className="text-xl font-bold text-gray-900 mb-4">Ayarlar</h1>
 
       <div className="grid grid-cols-2 gap-6">

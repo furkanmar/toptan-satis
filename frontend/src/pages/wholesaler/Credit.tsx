@@ -4,13 +4,6 @@ import Layout from '../../components/Layout'
 import { creditApi } from '../../api/client'
 import type { CreditSummary } from '../../types'
 
-const NAV = [
-  { to: '/wholesaler', label: 'Ana Sayfa' },
-  { to: '/wholesaler/products', label: 'Ürünler' },
-  { to: '/wholesaler/orders', label: 'Siparişler' },
-  { to: '/wholesaler/credit', label: 'Veresiye' },
-  { to: '/wholesaler/settings', label: 'Ayarlar' }
-]
 
 const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
   OrderDebit:   { label: 'Sipariş',    color: 'text-red-600',   sign: '+' },
@@ -52,7 +45,7 @@ export default function WholesalerCredit() {
   })
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout>
       <h1 className="text-xl font-bold text-gray-900 mb-4">Veresiye Defteri</h1>
 
       <div className="grid grid-cols-3 gap-4">

@@ -5,14 +5,6 @@ import Layout from '../../components/Layout'
 import { deliveryNotesApi } from '../../api/client'
 import { DeliveryNoteListItem } from '../../types'
 
-const NAV = [
-  { to: '/wholesaler', label: 'Ana Sayfa' },
-  { to: '/wholesaler/products', label: 'Ürünler' },
-  { to: '/wholesaler/orders', label: 'Siparişler' },
-  { to: '/wholesaler/delivery-notes', label: 'İrsaliyeler' },
-  { to: '/wholesaler/credit', label: 'Veresiye' },
-  { to: '/wholesaler/settings', label: 'Ayarlar' }
-]
 
 async function openPdfBlob(url: string) {
   const token = localStorage.getItem('token')
@@ -70,7 +62,7 @@ export default function WholesalerDeliveryNotes() {
   const openPdf = (noteId: string) => openPdfBlob(deliveryNotesApi.getPdfUrl(noteId))
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout>
     <div className="max-w-6xl mx-auto">
       <h1 className="text-xl font-bold text-gray-900 mb-6">Sevk İrsaliyeleri</h1>
 

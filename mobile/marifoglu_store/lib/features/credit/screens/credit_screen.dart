@@ -10,7 +10,14 @@ final _dateFmt = DateFormat('dd.MM.yyyy', 'tr_TR');
 final _numFmt = NumberFormat('#,##0.00', 'tr_TR');
 
 class CreditScreen extends ConsumerStatefulWidget {
-  const CreditScreen({super.key});
+  final String wholesalerId;
+  final String storeId;
+
+  const CreditScreen({
+    super.key,
+    required this.wholesalerId,
+    required this.storeId,
+  });
 
   @override
   ConsumerState<CreditScreen> createState() => _CreditScreenState();
@@ -50,15 +57,16 @@ class _CreditScreenState extends ConsumerState<CreditScreen>
       body: TabBarView(
         controller: _tabCtrl,
         children: [
-          _SummaryTab(),
+          _SummaryTab(wholesalerId: widget.wholesalerId),
           _StatementTab(
+            storeId: widget.storeId,
+            wholesalerId: widget.wholesalerId,
             from: _from,
             to: _to,
-            onDateRangeChanged: (f, t) =>
-                setState(() {
-                  _from = f;
-                  _to = t;
-                }),
+            onDateRangeChanged: (f, t) => setState(() {
+              _from = f;
+              _to = t;
+            }),
           ),
         ],
       ),
@@ -67,19 +75,22 @@ class _CreditScreenState extends ConsumerState<CreditScreen>
 }
 
 class _SummaryTab extends ConsumerWidget {
+  final String wholesalerId;
+  const _SummaryTab({required this.wholesalerId});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final summaryAsync = ref.watch(creditSummaryProvider);
+    final summaryAsync = ref.watch(creditSummaryProvider(wholesalerId));
     final cs = Theme.of(context).colorScheme;
 
     return summaryAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => ErrorView(
         message: e.toString(),
-        onRetry: () => ref.invalidate(creditSummaryProvider),
+        onRetry: () => ref.invalidate(creditSummaryProvider(wholesalerId)),
       ),
       data: (summary) => RefreshIndicator(
-        onRefresh: () async => ref.invalidate(creditSummaryProvider),
+        onRefresh: () async => ref.invalidate(creditSummaryProvider(wholesalerId)),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
@@ -176,11 +187,15 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _StatementTab extends ConsumerWidget {
+  final String storeId;
+  final String wholesalerId;
   final DateTime from;
   final DateTime to;
   final void Function(DateTime, DateTime) onDateRangeChanged;
 
   const _StatementTab({
+    required this.storeId,
+    required this.wholesalerId,
     required this.from,
     required this.to,
     required this.onDateRangeChanged,
@@ -188,8 +203,12 @@ class _StatementTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final statementAsync =
-        ref.watch(creditStatementProvider((from: from, to: to)));
+    final statementAsync = ref.watch(creditStatementProvider((
+      storeId: storeId,
+      wholesalerId: wholesalerId,
+      from: from,
+      to: to,
+    )));
     final cs = Theme.of(context).colorScheme;
 
     return Column(

@@ -4,9 +4,21 @@ import '../../../core/api/api_endpoints.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/order.dart';
 
+/// Mağazanın kendi siparişleri — GET /orders/my
 final ordersProvider = FutureProvider<List<Order>>((ref) async {
   final dio = ref.watch(dioProvider);
-  final response = await dio.get(ApiEndpoints.orders);
+  final response = await dio.get(ApiEndpoints.myOrders);
+  final list = response.data as List<dynamic>;
+  return list
+      .map((e) => Order.fromJson(e as Map<String, dynamic>))
+      .toList()
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+});
+
+/// Toptancının gelen siparişleri — GET /orders/incoming
+final incomingOrdersProvider = FutureProvider<List<Order>>((ref) async {
+  final dio = ref.watch(dioProvider);
+  final response = await dio.get(ApiEndpoints.incomingOrders);
   final list = response.data as List<dynamic>;
   return list
       .map((e) => Order.fromJson(e as Map<String, dynamic>))

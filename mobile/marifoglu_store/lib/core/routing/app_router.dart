@@ -10,6 +10,7 @@ import '../../features/products/screens/barcode_scanner_screen.dart';
 import '../../features/cart/screens/cart_screen.dart';
 import '../../features/orders/screens/order_history_screen.dart';
 import '../../features/orders/screens/order_detail_screen.dart';
+import '../../features/orders/screens/incoming_orders_screen.dart';
 import '../../features/credit/screens/credit_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 
@@ -23,7 +24,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoginRoute = state.matchedLocation == '/login';
 
       if (!isLoggedIn && !isLoginRoute) return '/login';
-      if (isLoggedIn && isLoginRoute) return '/wholesalers';
+      if (isLoggedIn && isLoginRoute) {
+        return authState.isWholesaler ? '/wholesaler/dashboard' : '/wholesalers';
+      }
       return null;
     },
     routes: [
@@ -32,6 +35,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'login',
         builder: (_, __) => const LoginScreen(),
       ),
+
+      // ── Mağaza (Store) rotaları ──────────────────────────────────────────
       GoRoute(
         path: '/wholesalers',
         name: 'wholesalers',
@@ -79,8 +84,29 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/credit',
         name: 'credit',
-        builder: (_, __) => const CreditScreen(),
+        builder: (_, state) => CreditScreen(
+          wholesalerId: state.uri.queryParameters['wholesalerId'] ?? '',
+          storeId: state.uri.queryParameters['storeId'] ?? '',
+        ),
       ),
+
+      // ── Toptancı (Wholesaler) rotaları ───────────────────────────────────
+      GoRoute(
+        path: '/wholesaler/dashboard',
+        name: 'wholesaler-dashboard',
+        builder: (_, __) => const IncomingOrdersScreen(),
+        routes: [
+          GoRoute(
+            path: 'order/:orderId',
+            name: 'incoming-order-detail',
+            builder: (_, state) => OrderDetailScreen(
+              orderId: state.pathParameters['orderId']!,
+            ),
+          ),
+        ],
+      ),
+
+      // ── Ortak ────────────────────────────────────────────────────────────
       GoRoute(
         path: '/profile',
         name: 'profile',

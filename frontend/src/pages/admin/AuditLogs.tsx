@@ -8,12 +8,6 @@ import { adminApi } from '../../api/client'
 import { formatDate } from '../../lib/utils'
 import type { AuditLogPage } from '../../types'
 
-const NAV = [
-  { to: '/admin', label: 'Dashboard' },
-  { to: '/admin/users', label: 'Kullanıcılar' },
-  { to: '/admin/store-wholesalers', label: 'İlişkiler' },
-  { to: '/admin/audit-logs', label: 'Audit Log' },
-]
 
 // ─── JSON Diff Viewer ─────────────────────────────────────────────────────────
 
@@ -96,7 +90,7 @@ export default function AdminAuditLogs() {
   }
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold text-gray-900">Audit Log</h1>
         {data && <span className="text-xs text-gray-500">Toplam {data.total} kayıt</span>}

@@ -37,14 +37,39 @@ class _AddToCartSheet extends ConsumerStatefulWidget {
 
 class _AddToCartSheetState extends ConsumerState<_AddToCartSheet> {
   late ProductUnitConfig _selectedConfig;
-  int _quantity = 1;
+  late int _quantity;
+  late TextEditingController _qtyCtrl;
+
+  int get _step => _selectedConfig.contentQty.clamp(1, 9999);
 
   @override
   void initState() {
     super.initState();
     _selectedConfig = widget.product.defaultUnitConfig ??
         widget.product.unitConfigs.first;
-    _quantity = widget.product.minOrderQty;
+    _quantity = _step;
+    _qtyCtrl = TextEditingController(text: '$_quantity');
+  }
+
+  @override
+  void dispose() {
+    _qtyCtrl.dispose();
+    super.dispose();
+  }
+
+  void _selectConfig(ProductUnitConfig config) {
+    setState(() {
+      _selectedConfig = config;
+      _quantity = _step;
+      _qtyCtrl.text = '$_quantity';
+    });
+  }
+
+  void _setQty(int qty) {
+    final clamped = qty < _step ? _step : qty;
+    setState(() => _quantity = clamped);
+    _qtyCtrl.text = '$clamped';
+    _qtyCtrl.selection = TextSelection.collapsed(offset: _qtyCtrl.text.length);
   }
 
   double get _total => _selectedConfig.price * _quantity;
@@ -103,35 +128,57 @@ class _AddToCartSheetState extends ConsumerState<_AddToCartSheet> {
                   label: Text(
                       '${config.label} - ${config.price.toStringAsFixed(2)}₺'),
                   selected: selected,
-                  onSelected: (_) =>
-                      setState(() => _selectedConfig = config),
+                  onSelected: (_) => _selectConfig(config),
                 );
               }).toList(),
             ),
             const SizedBox(height: 16),
           ],
 
-          // Miktar
+          // Miktar — adım = seçili config'in contentQty'si
           Row(
             children: [
               Text('Adet', style: Theme.of(context).textTheme.labelLarge),
+              if (_step > 1)
+                Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: Text(
+                    '($_step\'er)',
+                    style: TextStyle(
+                        fontSize: 12, color: cs.onSurfaceVariant),
+                  ),
+                ),
               const Spacer(),
               IconButton(
-                onPressed: _quantity > product.minOrderQty
-                    ? () => setState(() => _quantity--)
+                onPressed: _quantity > _step
+                    ? () => _setQty(_quantity - _step)
                     : null,
                 icon: const Icon(Icons.remove_circle_outline),
               ),
               SizedBox(
-                width: 48,
-                child: Text(
-                  '$_quantity',
+                width: 56,
+                child: TextField(
+                  controller: _qtyCtrl,
+                  keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleMedium,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                    contentPadding:
+                        EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                  ),
+                  onSubmitted: (v) {
+                    final parsed = int.tryParse(v) ?? _step;
+                    // Round up to nearest step
+                    final rounded =
+                        ((parsed + _step - 1) ~/ _step) * _step;
+                    _setQty(rounded.clamp(_step, 99999));
+                  },
                 ),
               ),
               IconButton(
-                onPressed: () => setState(() => _quantity++),
+                onPressed: () => _setQty(_quantity + _step),
                 icon: const Icon(Icons.add_circle_outline),
               ),
             ],

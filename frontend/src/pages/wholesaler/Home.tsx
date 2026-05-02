@@ -6,14 +6,6 @@ import { ordersApi, creditApi, wholesalersApi, productsApi } from '../../api/cli
 import { formatDateShort, formatCurrency, qtySign } from '../../lib/utils'
 import type { Order, StockMovement, Product } from '../../types'
 
-const NAV = [
-  { to: '/wholesaler', label: 'Ana Sayfa' },
-  { to: '/wholesaler/products', label: 'Ürünler' },
-  { to: '/wholesaler/orders', label: 'Siparişler' },
-  { to: '/wholesaler/credit', label: 'Veresiye' },
-  { to: '/wholesaler/settings', label: 'Ayarlar' },
-  { to: '/notifications', label: 'Bildirimler' },
-]
 
 export default function WholesalerHome() {
   const navigate = useNavigate()
@@ -66,7 +58,7 @@ export default function WholesalerHome() {
   ]
 
   return (
-    <Layout navLinks={NAV}>
+    <Layout>
       {/* Özet kartlar */}
       <div className="grid grid-cols-4 gap-4 mb-8">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
